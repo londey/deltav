@@ -26,8 +26,22 @@ pub struct GitHubConfig {
 
 impl GitHubConfig {
     /// Get the API base URL for this instance.
+    ///
+    /// Handles both GitHub Enterprise (appends /api/v3) and public GitHub.com
+    /// (uses api.github.com).
     pub fn api_url(&self) -> String {
-        format!("{}/api/v3", self.enterprise_url.trim_end_matches('/'))
+        let base = self.enterprise_url.trim_end_matches('/');
+        if base == "https://github.com" || base == "http://github.com" {
+            "https://api.github.com".to_string()
+        } else {
+            format!("{}/api/v3", base)
+        }
+    }
+
+    /// Check if this config points to public GitHub.com.
+    pub fn is_public_github(&self) -> bool {
+        let base = self.enterprise_url.trim_end_matches('/');
+        base == "https://github.com" || base == "http://github.com"
     }
 
     /// Get the GraphQL API URL for this instance.
@@ -155,6 +169,30 @@ mod tests {
             distractions: vec![],
         };
         assert_eq!(config.api_url(), "https://github.mycompany.com/api/v3");
+    }
+
+    #[test]
+    fn test_api_url_public_github() {
+        let config = GitHubConfig {
+            enterprise_url: "https://github.com".to_string(),
+            organisations: vec![],
+            projects: vec![],
+            distractions: vec![],
+        };
+        assert_eq!(config.api_url(), "https://api.github.com");
+        assert!(config.is_public_github());
+    }
+
+    #[test]
+    fn test_api_url_public_github_trailing_slash() {
+        let config = GitHubConfig {
+            enterprise_url: "https://github.com/".to_string(),
+            organisations: vec![],
+            projects: vec![],
+            distractions: vec![],
+        };
+        assert_eq!(config.api_url(), "https://api.github.com");
+        assert!(config.is_public_github());
     }
 
     #[test]

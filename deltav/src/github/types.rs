@@ -26,6 +26,8 @@ pub struct Issue {
     pub body: Option<String>,
     pub state: String,
     pub html_url: String,
+    /// URL to the repository API endpoint (e.g., "https://api.github.com/repos/owner/repo").
+    pub repository_url: String,
     pub user: User,
     pub labels: Vec<Label>,
     pub assignees: Vec<User>,
@@ -78,6 +80,20 @@ impl Issue {
     /// Get assigned usernames.
     pub fn assignee_logins(&self) -> Vec<&str> {
         self.assignees.iter().map(|u| u.login.as_str()).collect()
+    }
+
+    /// Extract org and repo from repository_url.
+    ///
+    /// The repository_url is like "https://api.github.com/repos/org/repo".
+    pub fn org_repo(&self) -> Option<(&str, &str)> {
+        let parts: Vec<_> = self.repository_url.split('/').collect();
+        if parts.len() >= 2 {
+            let repo = parts[parts.len() - 1];
+            let org = parts[parts.len() - 2];
+            Some((org, repo))
+        } else {
+            None
+        }
     }
 }
 
@@ -273,6 +289,7 @@ mod tests {
             body: None,
             state: "open".to_string(),
             html_url: "https://example.com".to_string(),
+            repository_url: "https://api.github.com/repos/test-org/test-repo".to_string(),
             user: User {
                 id: 1,
                 login: "test".to_string(),

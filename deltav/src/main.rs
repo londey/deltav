@@ -154,7 +154,7 @@ fn cmd_report(
     week: Option<String>,
     format: OutputFormat,
     output: Option<std::path::PathBuf>,
-    _token: Option<String>,
+    token: Option<String>,
 ) -> Result<()> {
     // Load and validate config
     let config = schema::ProjectConfig::load(&config_path)
@@ -174,9 +174,22 @@ fn cmd_report(
     let week_start = iso_week_to_date(year, week_num)?;
     let week_end = week_start + chrono::Duration::days(6);
 
-    // For now, generate a sample report without GitHub data
-    // In a full implementation, we'd fetch from GitHub here
-    let report_data = generate_sample_report(&config, &week_str, week_start, week_end)?;
+    // Resolve GitHub token
+    let hostname = github::extract_hostname(&config.github.enterprise_url);
+    let resolved_token = github::resolve_token(token.as_deref(), hostname.as_deref())?;
+
+    // Create GitHub client
+    let client = github::GitHubClient::new(config.github.clone(), &resolved_token)?;
+
+    // Test connection
+    let user = client
+        .test_connection()
+        .context("Failed to connect to GitHub")?;
+    eprintln!("Authenticated as: {}", user.login);
+
+    // Fetch data and generate report
+    let report_data =
+        generate_report_from_github(&client, &config, &week_str, week_start, week_end)?;
 
     // Render based on format
     match format {
@@ -248,16 +261,62 @@ fn iso_week_to_date(year: i32, week: u32) -> Result<chrono::NaiveDate> {
     Ok(target)
 }
 
-/// Generate a sample report for testing (without GitHub API calls).
-fn generate_sample_report(
+/// Generate a report by fetching data from GitHub.
+fn generate_report_from_github(
+    client: &github::GitHubClient,
     config: &schema::ProjectConfig,
     week_str: &str,
     week_start: chrono::NaiveDate,
     week_end: chrono::NaiveDate,
 ) -> Result<report::ReportData> {
+    use chrono::{TimeZone, Utc};
     use report::data::*;
 
     let as_of = week_end;
+
+    // Convert week boundaries to UTC timestamps for API queries
+    let week_start_utc = Utc.from_utc_datetime(&week_start.and_hms_opt(0, 0, 0).unwrap());
+    let _week_end_utc = Utc.from_utc_datetime(&week_end.and_hms_opt(23, 59, 59).unwrap());
+
+    // Fetch issues from all configured organizations
+    let mut all_issues: Vec<github::Issue> = Vec::new();
+    let mut repos_fetched = 0;
+
+    for org in &config.github.organisations {
+        eprintln!("Fetching repositories for org: {}", org.name);
+        let repos = client.fetch_repos(&org.name)?;
+        eprintln!("  Found {} matching repositories", repos.len());
+
+        for repo in &repos {
+            eprintln!("  Fetching issues from {}/{}", org.name, repo.name);
+            // Fetch issues updated since start of week (to catch closed issues)
+            let issues = client.fetch_issues(
+                &org.name,
+                &repo.name,
+                Some(week_start_utc),
+                github::IssueState::All,
+            )?;
+            eprintln!("    Found {} issues", issues.len());
+            all_issues.extend(issues);
+            repos_fetched += 1;
+        }
+    }
+
+    eprintln!(
+        "Total: {} issues from {} repositories",
+        all_issues.len(),
+        repos_fetched
+    );
+
+    // Calculate ticket metrics
+    let (closed_this_week, opened_this_week, points_delivered) =
+        calculate_ticket_metrics(&all_issues, week_start, week_end, &config.sizing);
+
+    // Find blocked issues (issues with "blocked" label)
+    let blocked_tickets = find_blocked_tickets(&all_issues);
+
+    // Count open issues for backlog
+    let open_issues = all_issues.iter().filter(|i| i.is_open()).count() as u32;
 
     // Build meta
     let meta = ReportMeta {
@@ -268,21 +327,21 @@ fn generate_sample_report(
         generated_at: chrono::Utc::now(),
     };
 
-    // Build weekly summary (placeholder data)
+    // Build weekly summary
     let weekly = WeeklySummary {
-        deliveries: vec![],
+        deliveries: vec![], // Would need to track completed CSCIs/documents
         tickets: TicketSummary {
-            closed: 0,
-            closed_prev: 0,
-            opened: 0,
-            net: 0,
-            points_delivered: 0,
-            velocity_avg: 0.0,
+            closed: closed_this_week,
+            closed_prev: 0, // Would need to fetch previous week
+            opened: opened_this_week,
+            net: closed_this_week as i32 - opened_this_week as i32,
+            points_delivered,
+            velocity_avg: points_delivered as f64, // Would need historical data
         },
         backlog: BacklogChange {
-            start: 0,
-            end: 0,
-            new_work: 0,
+            start: open_issues + closed_this_week, // Estimate
+            end: open_issues,
+            new_work: opened_this_week,
             new_work_note: None,
         },
         capacity: CapacitySummary {
@@ -295,16 +354,16 @@ fn generate_sample_report(
                 .filter_map(|l| {
                     config.team.member_by_github(&l.github).map(|m| LeaveEntry {
                         name: m.name.clone(),
-                        capacity_percent: 0, // Would calculate based on overlap
+                        capacity_percent: 0,
                         reason: l.reason.clone(),
                     })
                 })
                 .collect(),
             expected_velocity: 0,
-            actual_velocity: 0,
+            actual_velocity: points_delivered,
         },
-        blocked: vec![],
-        distractions: vec![],
+        blocked: blocked_tickets,
+        distractions: fetch_distractions(client, config, week_start_utc)?,
     };
 
     // Build project status
@@ -314,23 +373,12 @@ fn generate_sample_report(
             total_days: config.project.duration_days(),
             percent_elapsed: config.project.percent_elapsed(as_of),
         },
-        cscis: config
-            .deliverables
-            .csci
-            .iter()
-            .map(|c| CsciStatus {
-                id: c.id.clone(),
-                name: c.name.clone(),
-                target_date: c.target_date,
-                days_until: c.days_until_target(as_of),
-                total_tickets: 0, // Would fetch from GitHub
-                tier1_complete: 0,
-                tier2_complete: 0,
-                completion_percent: 0.0,
-                projection: Projection::OnTrack,
-                buffer_days: 0,
-            })
-            .collect(),
+        cscis: calculate_csci_status(
+            &all_issues,
+            &config.deliverables.csci,
+            as_of,
+            config.project.backlog_completeness,
+        ),
         dependencies: config
             .dependencies
             .external
@@ -341,7 +389,7 @@ fn generate_sample_report(
                 owner: d.owner.clone(),
                 rc_due: d.rc_due,
                 final_due: d.final_due,
-                rc_received: false, // Would need manual tracking
+                rc_received: false,
                 final_received: false,
                 status: if d.is_rc_overdue(as_of) {
                     DependencyStatusKind::RcOverdue
@@ -385,4 +433,178 @@ fn generate_sample_report(
         weekly,
         project,
     })
+}
+
+/// Calculate ticket metrics for the week.
+fn calculate_ticket_metrics(
+    issues: &[github::Issue],
+    week_start: chrono::NaiveDate,
+    week_end: chrono::NaiveDate,
+    sizing: &schema::Sizing,
+) -> (u32, u32, u32) {
+    let mut closed = 0u32;
+    let mut opened = 0u32;
+    let mut points = 0u32;
+
+    for issue in issues {
+        let created_date = issue.created_at.date_naive();
+        let closed_date = issue.closed_at.map(|d| d.date_naive());
+
+        // Count opened this week
+        if created_date >= week_start && created_date <= week_end {
+            opened += 1;
+        }
+
+        // Count closed this week and sum points
+        let closed_in_range = closed_date
+            .filter(|&d| d >= week_start && d <= week_end)
+            .is_some();
+
+        if closed_in_range {
+            closed += 1;
+
+            // Get points from size label
+            let issue_points = issue
+                .size_label()
+                .and_then(|label| sizing.points_for(label))
+                .unwrap_or(0);
+            points += issue_points;
+        }
+    }
+
+    (closed, opened, points)
+}
+
+/// Find blocked tickets (issues with "blocked" label).
+fn find_blocked_tickets(issues: &[github::Issue]) -> Vec<report::data::BlockedTicket> {
+    issues
+        .iter()
+        .filter(|i| i.is_open() && i.has_label_prefix("blocked"))
+        .map(|i| {
+            let (org, repo) = i.org_repo().unwrap_or(("unknown", "unknown"));
+            report::data::BlockedTicket {
+                repo: format!("{}/{}", org, repo),
+                number: i.number,
+                title: i.title.clone(),
+                blocked_on: i
+                    .labels
+                    .iter()
+                    .find(|l| l.name.starts_with("blocked"))
+                    .map(|l| l.name.clone())
+                    .unwrap_or_else(|| "Unknown".to_string()),
+            }
+        })
+        .collect()
+}
+
+/// Fetch distraction work from configured repositories.
+fn fetch_distractions(
+    client: &github::GitHubClient,
+    config: &schema::ProjectConfig,
+    since: chrono::DateTime<chrono::Utc>,
+) -> Result<Vec<report::data::DistractionSummary>> {
+    let mut distractions = Vec::new();
+
+    for distraction in &config.github.distractions {
+        let issues = client.fetch_issues(
+            &distraction.org,
+            &distraction.repo,
+            Some(since),
+            github::IssueState::All,
+        )?;
+
+        // Filter by label if specified
+        let filtered: Vec<_> = if let Some(ref label) = distraction.label {
+            issues.into_iter().filter(|i| i.has_label(label)).collect()
+        } else {
+            issues
+        };
+
+        if !filtered.is_empty() {
+            let assignees: Vec<String> = filtered
+                .iter()
+                .flat_map(|i| i.assignee_logins())
+                .map(|s| s.to_string())
+                .collect::<std::collections::HashSet<_>>()
+                .into_iter()
+                .collect();
+
+            distractions.push(report::data::DistractionSummary {
+                name: distraction.name.clone(),
+                ticket_count: filtered.len() as u32,
+                estimated_hours: None,
+                assignees,
+            });
+        }
+    }
+
+    Ok(distractions)
+}
+
+/// Calculate CSCI status by matching issues to CSCIs.
+fn calculate_csci_status(
+    issues: &[github::Issue],
+    cscis: &[schema::Csci],
+    as_of: chrono::NaiveDate,
+    backlog_completeness: f64,
+) -> Vec<report::data::CsciStatus> {
+    use report::data::{CsciStatus, Projection};
+
+    cscis
+        .iter()
+        .map(|csci| {
+            // Count issues belonging to this CSCI's repositories
+            let csci_issues: Vec<_> = issues
+                .iter()
+                .filter(|i| {
+                    i.org_repo()
+                        .map(|(org, repo)| csci.contains_repo(org, repo))
+                        .unwrap_or(false)
+                })
+                .collect();
+
+            let total = csci_issues.len() as u32;
+            let closed = csci_issues.iter().filter(|i| i.is_closed()).count() as u32;
+
+            // Tier 1 = closed, Tier 2 would require label checking
+            let tier1 = closed;
+            let tier2 = csci_issues
+                .iter()
+                .filter(|i| i.is_closed() && i.has_label("tier2-complete"))
+                .count() as u32;
+
+            // Adjusted completion (accounting for undiscovered work)
+            let raw_completion = if total > 0 {
+                (tier1 as f64 / total as f64) * 100.0
+            } else {
+                0.0
+            };
+            let adjusted_completion = raw_completion * backlog_completeness;
+
+            // Simple projection based on completion vs time elapsed
+            let days_until = csci.days_until_target(as_of);
+            let projection = if adjusted_completion >= 100.0 {
+                Projection::Complete
+            } else if days_until < 0 {
+                Projection::Behind
+            } else if adjusted_completion < 50.0 && days_until < 30 {
+                Projection::AtRisk
+            } else {
+                Projection::OnTrack
+            };
+
+            CsciStatus {
+                id: csci.id.clone(),
+                name: csci.name.clone(),
+                target_date: csci.target_date,
+                days_until,
+                total_tickets: total,
+                tier1_complete: tier1,
+                tier2_complete: tier2,
+                completion_percent: adjusted_completion,
+                projection,
+                buffer_days: 0, // Would need velocity calculation
+            }
+        })
+        .collect()
 }
