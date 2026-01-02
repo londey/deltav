@@ -10,12 +10,27 @@ use std::process::Command;
 
 /// Resolve a GitHub token from available sources.
 ///
-/// Priority order:
+/// Tries multiple sources in priority order until a valid token is found.
+///
+/// # Arguments
+///
+/// * `explicit_token` - Token provided via CLI `--token` argument (highest priority).
+/// * `hostname` - GitHub Enterprise hostname for gh CLI auth lookup (e.g., "github.mycompany.com").
+///   Pass `None` for public GitHub.
+///
+/// # Returns
+///
+/// The resolved token string, or an error if no token could be found.
+///
+/// # Priority Order
+///
 /// 1. Explicit token (from CLI --token argument)
-/// 2. GITHUB_TOKEN environment variable
+/// 2. `GITHUB_TOKEN` environment variable
 /// 3. gh CLI authentication (if available)
 ///
-/// For GitHub Enterprise, pass the hostname to check gh CLI auth for that specific host.
+/// # Errors
+///
+/// Returns an error if no token is found from any source.
 pub fn resolve_token(explicit_token: Option<&str>, hostname: Option<&str>) -> Result<String> {
     // 1. Explicit token takes precedence
     if let Some(token) = explicit_token {
@@ -49,8 +64,19 @@ pub fn resolve_token(explicit_token: Option<&str>, hostname: Option<&str>) -> Re
 
 /// Try to get a token from the gh CLI.
 ///
-/// Returns Ok(None) if gh is not installed or not authenticated.
-/// Returns Err only for unexpected failures.
+/// Checks if the `gh` CLI is installed and authenticated, then retrieves
+/// the stored token for the specified hostname.
+///
+/// # Arguments
+///
+/// * `hostname` - GitHub Enterprise hostname (e.g., "github.mycompany.com").
+///   Pass `None` for public GitHub.
+///
+/// # Returns
+///
+/// * `Ok(Some(token))` - Successfully retrieved token from gh CLI.
+/// * `Ok(None)` - gh CLI not installed or not authenticated for this host.
+/// * `Err(_)` - Unexpected failure running gh commands.
 fn try_gh_cli_token(hostname: Option<&str>) -> Result<Option<String>> {
     // First check if gh is available
     let gh_available = Command::new("gh")
@@ -98,11 +124,35 @@ fn try_gh_cli_token(hostname: Option<&str>) -> Result<Option<String>> {
     Ok(None)
 }
 
-/// Extract hostname from a GitHub URL.
+/// Extract hostname from a GitHub URL for use with the gh CLI.
 ///
-/// Examples:
-/// - "https://github.com" -> None (public GitHub, no hostname needed for gh)
-/// - "https://github.mycompany.com" -> Some("github.mycompany.com")
+/// Public GitHub URLs return `None` because the gh CLI defaults to github.com.
+/// Enterprise URLs return the hostname portion for use with `--hostname`.
+///
+/// # Arguments
+///
+/// * `enterprise_url` - Full GitHub URL (e.g., "https://github.mycompany.com").
+///
+/// # Returns
+///
+/// * `None` - For public GitHub URLs (https://github.com).
+/// * `Some(hostname)` - For GitHub Enterprise URLs.
+///
+/// # Examples
+///
+/// ```
+/// use deltav::github::extract_hostname;
+///
+/// // Public GitHub returns None
+/// assert_eq!(extract_hostname("https://github.com"), None);
+/// assert_eq!(extract_hostname("https://github.com/"), None);
+///
+/// // Enterprise URLs return the hostname
+/// assert_eq!(
+///     extract_hostname("https://github.mycompany.com"),
+///     Some("github.mycompany.com".to_string())
+/// );
+/// ```
 pub fn extract_hostname(enterprise_url: &str) -> Option<String> {
     let url = enterprise_url.trim_end_matches('/');
 

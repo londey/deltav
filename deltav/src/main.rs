@@ -44,6 +44,21 @@ fn main() -> Result<()> {
 }
 
 /// Generate a stub project.toml with example values.
+///
+/// Creates a template configuration file with placeholder values that users
+/// can edit to match their project structure.
+///
+/// # Arguments
+///
+/// * `output` - Optional file path. If `None`, writes to stdout.
+///
+/// # Returns
+///
+/// `Ok(())` on success.
+///
+/// # Errors
+///
+/// Returns an error if the file cannot be written.
 fn cmd_init(output: Option<std::path::PathBuf>) -> Result<()> {
     let stub = schema::ProjectConfig::stub();
     let toml = toml::to_string_pretty(&stub).context("Failed to serialize stub config")?;
@@ -63,6 +78,16 @@ fn cmd_init(output: Option<std::path::PathBuf>) -> Result<()> {
 }
 
 /// Add helpful comments to the stub TOML.
+///
+/// Prepends a header comment with usage instructions to the generated TOML.
+///
+/// # Arguments
+///
+/// * `toml` - The TOML content to prepend comments to.
+///
+/// # Returns
+///
+/// The TOML content with a header comment block prepended.
 fn add_stub_comments(toml: &str) -> String {
     let header = r#"# deltav Project Configuration
 # =============================
@@ -81,6 +106,21 @@ fn add_stub_comments(toml: &str) -> String {
 }
 
 /// Output JSON schema for project.toml.
+///
+/// Generates a JSON schema that can be used by editors for autocomplete
+/// and validation of project.toml files.
+///
+/// # Arguments
+///
+/// * `output` - Optional file path. If `None`, writes to stdout.
+///
+/// # Returns
+///
+/// `Ok(())` on success.
+///
+/// # Errors
+///
+/// Returns an error if the schema cannot be serialized or the file cannot be written.
 fn cmd_schema(output: Option<std::path::PathBuf>) -> Result<()> {
     let schema = schema::ProjectConfig::json_schema();
     let json = serde_json::to_string_pretty(&schema).context("Failed to serialize schema")?;
@@ -97,6 +137,25 @@ fn cmd_schema(output: Option<std::path::PathBuf>) -> Result<()> {
 }
 
 /// Validate a project.toml file.
+///
+/// Performs comprehensive validation of the configuration file including:
+/// - TOML syntax and structure
+/// - Regex pattern validity
+/// - Date range consistency
+/// - Backlog completeness bounds
+/// - Duplicate deliverable ID detection
+///
+/// # Arguments
+///
+/// * `config` - Path to the project.toml file to validate.
+///
+/// # Returns
+///
+/// `Ok(())` if validation passes.
+///
+/// # Errors
+///
+/// Returns an error describing the first validation failure encountered.
 fn cmd_validate(config: std::path::PathBuf) -> Result<()> {
     let content = std::fs::read_to_string(&config)
         .with_context(|| format!("Failed to read {}", config.display()))?;
@@ -149,6 +208,29 @@ fn cmd_validate(config: std::path::PathBuf) -> Result<()> {
 }
 
 /// Generate a weekly report.
+///
+/// Fetches data from GitHub and generates a report for the specified week.
+/// Supports multiple output formats (Markdown, HTML, PDF).
+///
+/// # Arguments
+///
+/// * `config_path` - Path to the project.toml configuration file.
+/// * `week` - ISO week string (e.g., "2026-W02"). Uses current week if `None`.
+/// * `format` - Output format (Markdown, HTML, PDF, or All).
+/// * `output` - Output path. If `None`, writes to stdout (except for "All" format).
+/// * `token` - GitHub token. If `None`, resolves from env or gh CLI.
+///
+/// # Returns
+///
+/// `Ok(())` on success.
+///
+/// # Errors
+///
+/// Returns an error if:
+/// - Configuration cannot be loaded
+/// - GitHub authentication fails
+/// - API requests fail
+/// - Output cannot be written
 fn cmd_report(
     config_path: std::path::PathBuf,
     week: Option<String>,
@@ -228,6 +310,22 @@ fn cmd_report(
 }
 
 /// Write output to file or stdout.
+///
+/// If a directory path is provided, creates a file named "report.{ext}" in that directory.
+///
+/// # Arguments
+///
+/// * `content` - The content to write.
+/// * `output` - Optional output path (file or directory). Writes to stdout if `None`.
+/// * `ext` - File extension to use when output is a directory.
+///
+/// # Returns
+///
+/// `Ok(())` on success.
+///
+/// # Errors
+///
+/// Returns an error if the file cannot be written.
 fn write_output(content: &str, output: Option<&std::path::PathBuf>, ext: &str) -> Result<()> {
     if let Some(path) = output {
         let final_path = if path.is_dir() {
@@ -246,6 +344,22 @@ fn write_output(content: &str, output: Option<&std::path::PathBuf>, ext: &str) -
 }
 
 /// Convert ISO week to Monday date.
+///
+/// Calculates the date of the Monday for the given ISO week number.
+/// Uses the ISO 8601 week numbering system where week 1 contains January 4.
+///
+/// # Arguments
+///
+/// * `year` - ISO year (may differ from calendar year at year boundaries).
+/// * `week` - ISO week number (1-52 or 1-53).
+///
+/// # Returns
+///
+/// The date of Monday for the specified week.
+///
+/// # Errors
+///
+/// Returns an error if the year is invalid.
 fn iso_week_to_date(year: i32, week: u32) -> Result<chrono::NaiveDate> {
     use chrono::{Datelike, NaiveDate};
 
@@ -262,6 +376,25 @@ fn iso_week_to_date(year: i32, week: u32) -> Result<chrono::NaiveDate> {
 }
 
 /// Generate a report by fetching data from GitHub.
+///
+/// Fetches issues from all configured organizations and repositories,
+/// calculates metrics, and builds the complete report data structure.
+///
+/// # Arguments
+///
+/// * `client` - Authenticated GitHub API client.
+/// * `config` - Project configuration.
+/// * `week_str` - ISO week string for the report header (e.g., "2026-W02").
+/// * `week_start` - First day (Monday) of the reporting week.
+/// * `week_end` - Last day (Sunday) of the reporting week.
+///
+/// # Returns
+///
+/// Complete report data ready for rendering.
+///
+/// # Errors
+///
+/// Returns an error if GitHub API requests fail.
 fn generate_report_from_github(
     client: &github::GitHubClient,
     config: &schema::ProjectConfig,
@@ -436,6 +569,20 @@ fn generate_report_from_github(
 }
 
 /// Calculate ticket metrics for the week.
+///
+/// Counts issues opened and closed within the week, and sums points
+/// for closed issues based on their size labels.
+///
+/// # Arguments
+///
+/// * `issues` - All issues fetched from GitHub (may include issues outside the week).
+/// * `week_start` - First day (Monday) of the reporting week.
+/// * `week_end` - Last day (Sunday) of the reporting week.
+/// * `sizing` - T-shirt sizing configuration for point calculations.
+///
+/// # Returns
+///
+/// A tuple of (closed_count, opened_count, points_delivered).
 fn calculate_ticket_metrics(
     issues: &[github::Issue],
     week_start: chrono::NaiveDate,
@@ -476,6 +623,17 @@ fn calculate_ticket_metrics(
 }
 
 /// Find blocked tickets (issues with "blocked" label).
+///
+/// Identifies open issues that have a label starting with "blocked"
+/// (e.g., "blocked", "blocked:external", "blocked-by-dependency").
+///
+/// # Arguments
+///
+/// * `issues` - All issues to search through.
+///
+/// # Returns
+///
+/// A vector of blocked ticket summaries for the report.
 fn find_blocked_tickets(issues: &[github::Issue]) -> Vec<report::data::BlockedTicket> {
     issues
         .iter()
@@ -498,6 +656,23 @@ fn find_blocked_tickets(issues: &[github::Issue]) -> Vec<report::data::BlockedTi
 }
 
 /// Fetch distraction work from configured repositories.
+///
+/// Retrieves issues from configured "distraction" repositories that represent
+/// non-project work (e.g., support tickets, maintenance, on-call work).
+///
+/// # Arguments
+///
+/// * `client` - Authenticated GitHub API client.
+/// * `config` - Project configuration containing distraction repo settings.
+/// * `since` - Only fetch issues updated after this timestamp.
+///
+/// # Returns
+///
+/// A vector of distraction summaries, one per configured distraction source.
+///
+/// # Errors
+///
+/// Returns an error if GitHub API requests fail.
 fn fetch_distractions(
     client: &github::GitHubClient,
     config: &schema::ProjectConfig,
@@ -542,6 +717,20 @@ fn fetch_distractions(
 }
 
 /// Calculate CSCI status by matching issues to CSCIs.
+///
+/// For each CSCI, counts the issues in its associated repositories and
+/// calculates completion percentage, adjusted by the backlog completeness factor.
+///
+/// # Arguments
+///
+/// * `issues` - All issues fetched from GitHub.
+/// * `cscis` - CSCI definitions from the project configuration.
+/// * `as_of` - Reference date for calculating days remaining.
+/// * `backlog_completeness` - Factor (0.0-1.0) to adjust for undiscovered work.
+///
+/// # Returns
+///
+/// A vector of CSCI status entries for the report.
 fn calculate_csci_status(
     issues: &[github::Issue],
     cscis: &[schema::Csci],

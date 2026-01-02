@@ -1,4 +1,7 @@
 //! GitHub API client implementation.
+//!
+//! This module provides the [`GitHubClient`] for interacting with GitHub's REST API.
+//! It supports both public GitHub and GitHub Enterprise instances.
 
 use super::types::*;
 use crate::schema::GitHubConfig;
@@ -7,14 +10,37 @@ use chrono::{DateTime, Utc};
 use reqwest::blocking::Client;
 use reqwest::header::{HeaderMap, HeaderValue, ACCEPT, AUTHORIZATION, USER_AGENT};
 
-/// Client for interacting with GitHub Enterprise API.
+/// Client for interacting with GitHub REST API.
+///
+/// Supports both public GitHub (api.github.com) and GitHub Enterprise instances.
+/// All API calls use token-based authentication and handle pagination automatically.
 pub struct GitHubClient {
+    /// The underlying HTTP client with authentication headers.
     client: Client,
+
+    /// GitHub configuration (enterprise URL, organizations, etc.).
     config: GitHubConfig,
 }
 
 impl GitHubClient {
     /// Create a new GitHub client.
+    ///
+    /// Initializes the HTTP client with authentication headers for the GitHub API.
+    ///
+    /// # Arguments
+    ///
+    /// * `config` - GitHub configuration including enterprise URL and organization settings.
+    /// * `token` - Personal access token for API authentication.
+    ///
+    /// # Returns
+    ///
+    /// A configured `GitHubClient` ready to make API calls, or an error if
+    /// the HTTP client could not be initialized.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the token format is invalid or the HTTP client
+    /// cannot be created.
     pub fn new(config: GitHubConfig, token: &str) -> Result<Self> {
         let mut headers = HeaderMap::new();
         headers.insert(
@@ -36,11 +62,34 @@ impl GitHubClient {
     }
 
     /// Get the API base URL.
+    ///
+    /// # Returns
+    ///
+    /// The base URL for API requests (e.g., "https://api.github.com" or
+    /// "https://github.enterprise.com/api/v3").
     fn api_url(&self) -> String {
         self.config.api_url()
     }
 
     /// Fetch all repositories for an organization that match the configured pattern.
+    ///
+    /// Retrieves repositories from the specified organization and filters them
+    /// using the regex pattern configured for that organization.
+    ///
+    /// # Arguments
+    ///
+    /// * `org` - Organization name (must be configured in `GitHubConfig`).
+    ///
+    /// # Returns
+    ///
+    /// A vector of repositories matching the configured pattern.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - The organization is not found in the configuration.
+    /// - The repo pattern regex is invalid.
+    /// - The API request fails.
     pub fn fetch_repos(&self, org: &str) -> Result<Vec<Repository>> {
         let org_config = self
             .config
@@ -88,6 +137,25 @@ impl GitHubClient {
     }
 
     /// Fetch issues for a repository within a date range.
+    ///
+    /// Retrieves issues from the specified repository, optionally filtering
+    /// by update date. Pull requests are automatically filtered out (use
+    /// [`fetch_pull_requests`](Self::fetch_pull_requests) instead).
+    ///
+    /// # Arguments
+    ///
+    /// * `org` - Organization name.
+    /// * `repo` - Repository name.
+    /// * `since` - Only return issues updated after this date (optional).
+    /// * `state` - Filter by issue state (open, closed, or all).
+    ///
+    /// # Returns
+    ///
+    /// A vector of issues matching the criteria.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the API request fails.
     pub fn fetch_issues(
         &self,
         org: &str,
@@ -138,6 +206,25 @@ impl GitHubClient {
     }
 
     /// Fetch pull requests for a repository.
+    ///
+    /// Retrieves pull requests from the specified repository, sorted by
+    /// update date (newest first). Pagination stops when PRs older than
+    /// the `since` date are encountered.
+    ///
+    /// # Arguments
+    ///
+    /// * `org` - Organization name.
+    /// * `repo` - Repository name.
+    /// * `state` - Filter by PR state (open, closed, or all).
+    /// * `since` - Only return PRs updated after this date (optional).
+    ///
+    /// # Returns
+    ///
+    /// A vector of pull requests matching the criteria.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the API request fails.
     pub fn fetch_pull_requests(
         &self,
         org: &str,
@@ -192,6 +279,23 @@ impl GitHubClient {
     }
 
     /// Fetch events for an issue (for label change history).
+    ///
+    /// Retrieves the timeline of events for an issue, including label changes,
+    /// assignment changes, and milestone updates.
+    ///
+    /// # Arguments
+    ///
+    /// * `org` - Organization name.
+    /// * `repo` - Repository name.
+    /// * `issue_number` - Issue number within the repository.
+    ///
+    /// # Returns
+    ///
+    /// A vector of all events for the issue.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the API request fails.
     pub fn fetch_issue_events(
         &self,
         org: &str,
@@ -231,6 +335,20 @@ impl GitHubClient {
     }
 
     /// Fetch a single issue by number.
+    ///
+    /// # Arguments
+    ///
+    /// * `org` - Organization name.
+    /// * `repo` - Repository name.
+    /// * `number` - Issue number within the repository.
+    ///
+    /// # Returns
+    ///
+    /// The requested issue.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the issue is not found or the API request fails.
     pub fn fetch_issue(&self, org: &str, repo: &str, number: u64) -> Result<Issue> {
         let url = format!(
             "{}/repos/{}/{}/issues/{}",
@@ -251,7 +369,18 @@ impl GitHubClient {
         Ok(issue)
     }
 
-    /// Test the connection to GitHub Enterprise.
+    /// Test the connection to GitHub.
+    ///
+    /// Fetches the authenticated user's information to verify that the
+    /// token is valid and the API is reachable.
+    ///
+    /// # Returns
+    ///
+    /// The authenticated user's information.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if authentication fails or the API is unreachable.
     pub fn test_connection(&self) -> Result<User> {
         let url = format!("{}/user", self.api_url());
 
@@ -267,6 +396,16 @@ impl GitHubClient {
     }
 
     /// Get rate limit status.
+    ///
+    /// Retrieves the current API rate limit status for the authenticated user.
+    ///
+    /// # Returns
+    ///
+    /// Rate limit information including remaining requests and reset time.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the API request fails.
     pub fn rate_limit(&self) -> Result<RateLimit> {
         let url = format!("{}/rate_limit", self.api_url());
 
