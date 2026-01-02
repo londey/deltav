@@ -1,9 +1,15 @@
 //! GitHub API response types.
+//!
+//! These types correspond to objects returned by the GitHub REST API v3.
+//! See the [GitHub REST API documentation](https://docs.github.com/en/rest) for details.
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
 /// A GitHub repository.
+///
+/// Corresponds to the repository object from the GitHub REST API.
+/// See: <https://docs.github.com/en/rest/repos/repos#get-a-repository>
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Repository {
     /// Unique identifier for the repository.
@@ -35,6 +41,9 @@ pub struct Repository {
 }
 
 /// A GitHub issue.
+///
+/// Corresponds to the issue object from the GitHub REST API.
+/// See: <https://docs.github.com/en/rest/issues/issues#get-an-issue>
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Issue {
     /// Unique identifier for the issue.
@@ -198,6 +207,9 @@ pub struct PullRequestRef {
 }
 
 /// A GitHub pull request.
+///
+/// Corresponds to the pull request object from the GitHub REST API.
+/// See: <https://docs.github.com/en/rest/pulls/pulls#get-a-pull-request>
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PullRequest {
     /// Unique identifier for the pull request.
@@ -293,6 +305,7 @@ pub struct BranchRef {
 /// A GitHub label.
 ///
 /// Labels are used to categorize issues and pull requests.
+/// See: <https://docs.github.com/en/rest/issues/labels>
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Label {
     /// Unique identifier for the label.
@@ -311,6 +324,7 @@ pub struct Label {
 /// A GitHub user.
 ///
 /// Represents a GitHub user account (can be a person or bot).
+/// See: <https://docs.github.com/en/rest/users/users>
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct User {
     /// Unique identifier for the user.
@@ -330,6 +344,7 @@ pub struct User {
 /// A GitHub milestone.
 ///
 /// Milestones group issues and pull requests into larger goals.
+/// See: <https://docs.github.com/en/rest/issues/milestones>
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Milestone {
     /// Unique identifier for the milestone.
@@ -355,6 +370,7 @@ pub struct Milestone {
 ///
 /// Events represent actions taken on an issue, such as labeling,
 /// assignment changes, or milestone updates.
+/// See: <https://docs.github.com/en/rest/issues/events>
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct IssueEvent {
     /// Unique identifier for the event.
@@ -463,6 +479,7 @@ impl PullRequestState {
 ///
 /// GitHub enforces rate limits on API requests. This struct contains
 /// the current rate limit status returned in API response headers.
+/// See: <https://docs.github.com/en/rest/rate-limit>
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RateLimit {
     /// Maximum requests allowed per hour.
