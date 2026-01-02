@@ -246,10 +246,7 @@ mod tests {
             name: "Test".to_string(),
             id: "CSCI-TEST".to_string(),
             target_date: NaiveDate::from_ymd_opt(2025, 6, 1).unwrap(),
-            repos: vec![
-                "org-a/repo-1".to_string(),
-                "org-b/repo-2".to_string(),
-            ],
+            repos: vec!["org-a/repo-1".to_string(), "org-b/repo-2".to_string()],
             tier1_label: "ready".to_string(),
             tier2_label: "done".to_string(),
         };

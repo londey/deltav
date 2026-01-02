@@ -19,8 +19,7 @@ impl GitHubClient {
         let mut headers = HeaderMap::new();
         headers.insert(
             AUTHORIZATION,
-            HeaderValue::from_str(&format!("token {}", token))
-                .context("Invalid token format")?,
+            HeaderValue::from_str(&format!("token {}", token)).context("Invalid token format")?,
         );
         headers.insert(
             ACCEPT,
@@ -50,8 +49,8 @@ impl GitHubClient {
             .find(|o| o.name == org)
             .context("Organization not found in config")?;
 
-        let pattern = regex::Regex::new(&org_config.repo_pattern)
-            .context("Invalid repo pattern regex")?;
+        let pattern =
+            regex::Regex::new(&org_config.repo_pattern).context("Invalid repo pattern regex")?;
 
         let mut all_repos = Vec::new();
         let mut page = 1;

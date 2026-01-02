@@ -386,7 +386,10 @@ impl DependencyStatusKind {
     }
 
     pub fn is_at_risk(&self) -> bool {
-        matches!(self, DependencyStatusKind::RcOverdue | DependencyStatusKind::FinalOverdue)
+        matches!(
+            self,
+            DependencyStatusKind::RcOverdue | DependencyStatusKind::FinalOverdue
+        )
     }
 }
 
@@ -477,9 +480,15 @@ impl ReportBuilder {
 
     pub fn build(self) -> anyhow::Result<ReportData> {
         Ok(ReportData {
-            meta: self.meta.ok_or_else(|| anyhow::anyhow!("Missing report meta"))?,
-            weekly: self.weekly.ok_or_else(|| anyhow::anyhow!("Missing weekly summary"))?,
-            project: self.project.ok_or_else(|| anyhow::anyhow!("Missing project status"))?,
+            meta: self
+                .meta
+                .ok_or_else(|| anyhow::anyhow!("Missing report meta"))?,
+            weekly: self
+                .weekly
+                .ok_or_else(|| anyhow::anyhow!("Missing weekly summary"))?,
+            project: self
+                .project
+                .ok_or_else(|| anyhow::anyhow!("Missing project status"))?,
         })
     }
 }

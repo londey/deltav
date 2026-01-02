@@ -11,16 +11,16 @@ pub fn render(data: &ReportData) -> String {
 
     // HTML header with inline CSS
     out.push_str(HTML_HEADER);
-    
+
     // Page 1: Weekly Summary
     render_page1(&mut out, data);
-    
+
     // Page break for printing
     out.push_str(r#"<div class="page-break"></div>"#);
-    
+
     // Page 2: Project Status
     render_page2(&mut out, data);
-    
+
     // HTML footer
     out.push_str(HTML_FOOTER);
 
@@ -29,13 +29,22 @@ pub fn render(data: &ReportData) -> String {
 
 fn render_page1(out: &mut String, data: &ReportData) {
     writeln!(out, r#"<div class="page">"#).unwrap();
-    
+
     // Header
     writeln!(out, r#"<header>"#).unwrap();
-    writeln!(out, r#"<h1>DELTAV WEEKLY REPORT — {} — {}</h1>"#, 
-        html_escape(&data.meta.project_name), data.meta.week).unwrap();
-    writeln!(out, r#"<p class="subtitle">{} to {}</p>"#, 
-        data.meta.week_start, data.meta.week_end).unwrap();
+    writeln!(
+        out,
+        r#"<h1>DELTAV WEEKLY REPORT — {} — {}</h1>"#,
+        html_escape(&data.meta.project_name),
+        data.meta.week
+    )
+    .unwrap();
+    writeln!(
+        out,
+        r#"<p class="subtitle">{} to {}</p>"#,
+        data.meta.week_start, data.meta.week_end
+    )
+    .unwrap();
     writeln!(out, r#"</header>"#).unwrap();
 
     // Deliveries
@@ -46,11 +55,19 @@ fn render_page1(out: &mut String, data: &ReportData) {
     } else {
         writeln!(out, r#"<ul class="deliveries">"#).unwrap();
         for delivery in &data.weekly.deliveries {
-            let blocked_note = if delivery.was_blocked { 
-                r#" <span class="was-blocked">(was blocked)</span>"# 
-            } else { "" };
-            writeln!(out, r#"<li><span class="check">☑</span> <strong>{}</strong> — {}{}</li>"#,
-                html_escape(&delivery.id), html_escape(&delivery.name), blocked_note).unwrap();
+            let blocked_note = if delivery.was_blocked {
+                r#" <span class="was-blocked">(was blocked)</span>"#
+            } else {
+                ""
+            };
+            writeln!(
+                out,
+                r#"<li><span class="check">☑</span> <strong>{}</strong> — {}{}</li>"#,
+                html_escape(&delivery.id),
+                html_escape(&delivery.name),
+                blocked_note
+            )
+            .unwrap();
         }
         writeln!(out, r#"</ul>"#).unwrap();
     }
@@ -63,10 +80,30 @@ fn render_page1(out: &mut String, data: &ReportData) {
     writeln!(out, r#"<table class="metrics">"#).unwrap();
     writeln!(out, r#"<tr><td>Closed</td><td><strong>{}</strong> <span class="trend">{}</span> from {}</td></tr>"#,
         tickets.closed, tickets.closed_trend(), tickets.closed_prev).unwrap();
-    writeln!(out, r#"<tr><td>Opened</td><td>{}</td></tr>"#, tickets.opened).unwrap();
-    writeln!(out, r#"<tr><td>Net</td><td><strong>{:+}</strong> toward done</td></tr>"#, tickets.net).unwrap();
-    writeln!(out, r#"<tr><td>Points Delivered</td><td><strong>{}</strong></td></tr>"#, tickets.points_delivered).unwrap();
-    writeln!(out, r#"<tr><td>Velocity (4wk avg)</td><td>{:.0}</td></tr>"#, tickets.velocity_avg).unwrap();
+    writeln!(
+        out,
+        r#"<tr><td>Opened</td><td>{}</td></tr>"#,
+        tickets.opened
+    )
+    .unwrap();
+    writeln!(
+        out,
+        r#"<tr><td>Net</td><td><strong>{:+}</strong> toward done</td></tr>"#,
+        tickets.net
+    )
+    .unwrap();
+    writeln!(
+        out,
+        r#"<tr><td>Points Delivered</td><td><strong>{}</strong></td></tr>"#,
+        tickets.points_delivered
+    )
+    .unwrap();
+    writeln!(
+        out,
+        r#"<tr><td>Velocity (4wk avg)</td><td>{:.0}</td></tr>"#,
+        tickets.velocity_avg
+    )
+    .unwrap();
     writeln!(out, r#"</table>"#).unwrap();
     writeln!(out, r#"</section>"#).unwrap();
 
@@ -78,7 +115,12 @@ fn render_page1(out: &mut String, data: &ReportData) {
         backlog.start, backlog.end).unwrap();
     if backlog.new_work > 0 {
         let note = html_escape(backlog.new_work_note.as_deref().unwrap_or("new work added"));
-        writeln!(out, r#"<p>New work: {} tickets ({})</p>"#, backlog.new_work, note).unwrap();
+        writeln!(
+            out,
+            r#"<p>New work: {} tickets ({})</p>"#,
+            backlog.new_work, note
+        )
+        .unwrap();
     }
     writeln!(out, r#"</section>"#).unwrap();
 
@@ -90,16 +132,36 @@ fn render_page1(out: &mut String, data: &ReportData) {
         writeln!(out, r#"<ul>"#).unwrap();
         for leave in &capacity.leave {
             let reason = html_escape(leave.reason.as_deref().unwrap_or("leave"));
-            writeln!(out, r#"<li><strong>{}</strong>: {} ({}% capacity)</li>"#,
-                html_escape(&leave.name), reason, leave.capacity_percent).unwrap();
+            writeln!(
+                out,
+                r#"<li><strong>{}</strong>: {} ({}% capacity)</li>"#,
+                html_escape(&leave.name),
+                reason,
+                leave.capacity_percent
+            )
+            .unwrap();
         }
         writeln!(out, r#"</ul>"#).unwrap();
     }
-    let perf_class = if capacity.performance_percent() >= 100.0 { "good" } else { "warn" };
-    writeln!(out, r#"<p>Adjusted velocity expectation: <strong>{}</strong> points</p>"#, 
-        capacity.expected_velocity).unwrap();
-    writeln!(out, r#"<p>Actual: <strong class="{}">{}</strong> points ({:.0}% of target)</p>"#,
-        perf_class, capacity.actual_velocity, capacity.performance_percent()).unwrap();
+    let perf_class = if capacity.performance_percent() >= 100.0 {
+        "good"
+    } else {
+        "warn"
+    };
+    writeln!(
+        out,
+        r#"<p>Adjusted velocity expectation: <strong>{}</strong> points</p>"#,
+        capacity.expected_velocity
+    )
+    .unwrap();
+    writeln!(
+        out,
+        r#"<p>Actual: <strong class="{}">{}</strong> points ({:.0}% of target)</p>"#,
+        perf_class,
+        capacity.actual_velocity,
+        capacity.performance_percent()
+    )
+    .unwrap();
     writeln!(out, r#"</section>"#).unwrap();
 
     // Blocked
@@ -126,9 +188,18 @@ fn render_page1(out: &mut String, data: &ReportData) {
     } else {
         writeln!(out, r#"<ul>"#).unwrap();
         for d in &data.weekly.distractions {
-            let hours = d.estimated_hours.map(|h| format!(", ~{:.0}h", h)).unwrap_or_default();
-            writeln!(out, r#"<li><strong>{}</strong>: {} tickets{}</li>"#,
-                html_escape(&d.name), d.ticket_count, hours).unwrap();
+            let hours = d
+                .estimated_hours
+                .map(|h| format!(", ~{:.0}h", h))
+                .unwrap_or_default();
+            writeln!(
+                out,
+                r#"<li><strong>{}</strong>: {} tickets{}</li>"#,
+                html_escape(&d.name),
+                d.ticket_count,
+                hours
+            )
+            .unwrap();
         }
         writeln!(out, r#"</ul>"#).unwrap();
     }
@@ -139,47 +210,85 @@ fn render_page1(out: &mut String, data: &ReportData) {
 
 fn render_page2(out: &mut String, data: &ReportData) {
     writeln!(out, r#"<div class="page">"#).unwrap();
-    
+
     // Header
     writeln!(out, r#"<header>"#).unwrap();
-    writeln!(out, r#"<h1>PROJECT STATUS — {}</h1>"#, html_escape(&data.meta.project_name)).unwrap();
-    writeln!(out, r#"<p class="subtitle">As of {} | Day {} of {} ({:.0}% elapsed)</p>"#,
+    writeln!(
+        out,
+        r#"<h1>PROJECT STATUS — {}</h1>"#,
+        html_escape(&data.meta.project_name)
+    )
+    .unwrap();
+    writeln!(
+        out,
+        r#"<p class="subtitle">As of {} | Day {} of {} ({:.0}% elapsed)</p>"#,
         data.meta.week_end,
         data.project.timeline.days_elapsed,
         data.project.timeline.total_days,
-        data.project.timeline.percent_elapsed).unwrap();
+        data.project.timeline.percent_elapsed
+    )
+    .unwrap();
     writeln!(out, r#"</header>"#).unwrap();
 
     // CSCI Status
     writeln!(out, r#"<section>"#).unwrap();
     writeln!(out, r#"<h2>CSCI Completion</h2>"#).unwrap();
-    writeln!(out, r#"<p class="note">Adjusted for backlog completeness estimate.</p>"#).unwrap();
-    
+    writeln!(
+        out,
+        r#"<p class="note">Adjusted for backlog completeness estimate.</p>"#
+    )
+    .unwrap();
+
     for csci in &data.project.cscis {
         writeln!(out, r#"<div class="csci">"#).unwrap();
-        writeln!(out, r#"<h3>{} ({}) <span class="target">Target: {}</span></h3>"#,
-            html_escape(&csci.name), html_escape(&csci.id), csci.target_date).unwrap();
-        
+        writeln!(
+            out,
+            r#"<h3>{} ({}) <span class="target">Target: {}</span></h3>"#,
+            html_escape(&csci.name),
+            html_escape(&csci.id),
+            csci.target_date
+        )
+        .unwrap();
+
         // Progress bar
         writeln!(out, r#"<div class="progress-container">"#).unwrap();
-        writeln!(out, r#"<div class="progress-bar" style="width: {}%"></div>"#, 
-            csci.completion_percent.min(100.0)).unwrap();
-        writeln!(out, r#"<span class="progress-label">{:.0}%</span>"#, csci.completion_percent).unwrap();
+        writeln!(
+            out,
+            r#"<div class="progress-bar" style="width: {}%"></div>"#,
+            csci.completion_percent.min(100.0)
+        )
+        .unwrap();
+        writeln!(
+            out,
+            r#"<span class="progress-label">{:.0}%</span>"#,
+            csci.completion_percent
+        )
+        .unwrap();
         writeln!(out, r#"</div>"#).unwrap();
-        
+
         writeln!(out, r#"<p><strong>Tier 1</strong> (integration-ready): {}/{} | <strong>Tier 2</strong> (HIL-passed): {}/{}</p>"#,
             csci.tier1_complete, csci.total_tickets,
             csci.tier2_complete, csci.total_tickets).unwrap();
-        
+
         let proj_class = match csci.projection {
             Projection::OnTrack | Projection::Complete => "good",
             Projection::AtRisk => "warn",
             Projection::Behind => "bad",
         };
-        writeln!(out, r#"<p class="{}">Projection: {} {} ({} days {})</p>"#,
-            proj_class, csci.projection.symbol(), csci.projection.as_str(),
+        writeln!(
+            out,
+            r#"<p class="{}">Projection: {} {} ({} days {})</p>"#,
+            proj_class,
+            csci.projection.symbol(),
+            csci.projection.as_str(),
             csci.buffer_days.abs(),
-            if csci.buffer_days >= 0 { "buffer" } else { "behind" }).unwrap();
+            if csci.buffer_days >= 0 {
+                "buffer"
+            } else {
+                "behind"
+            }
+        )
+        .unwrap();
         writeln!(out, r#"</div>"#).unwrap();
     }
     writeln!(out, r#"</section>"#).unwrap();
@@ -191,10 +300,24 @@ fn render_page2(out: &mut String, data: &ReportData) {
         writeln!(out, r#"<p class="empty">No external dependencies.</p>"#).unwrap();
     } else {
         writeln!(out, r#"<table class="deps">"#).unwrap();
-        writeln!(out, r#"<tr><th>ID</th><th>Name</th><th>Owner</th><th>RC</th><th>Final</th></tr>"#).unwrap();
+        writeln!(
+            out,
+            r#"<tr><th>ID</th><th>Name</th><th>Owner</th><th>RC</th><th>Final</th></tr>"#
+        )
+        .unwrap();
         for dep in &data.project.dependencies {
-            let rc_class = if dep.rc_received { "good" } else if dep.status.is_at_risk() { "bad" } else { "" };
-            let rc_sym = if dep.rc_received { "✓" } else { dep.status.symbol() };
+            let rc_class = if dep.rc_received {
+                "good"
+            } else if dep.status.is_at_risk() {
+                "bad"
+            } else {
+                ""
+            };
+            let rc_sym = if dep.rc_received {
+                "✓"
+            } else {
+                dep.status.symbol()
+            };
             writeln!(out, r#"<tr><td>{}</td><td>{}</td><td>{}</td><td class="{}">{} {}</td><td>{} {}</td></tr>"#,
                 html_escape(&dep.id), html_escape(&dep.name), html_escape(&dep.owner),
                 rc_class, rc_sym, dep.rc_due,
@@ -214,12 +337,25 @@ fn render_page2(out: &mut String, data: &ReportData) {
         for doc in &data.project.documents {
             let (class, status_str) = match doc.status {
                 DocumentStatusKind::Complete => ("good", format!("✓ Complete")),
-                DocumentStatusKind::InProgress => ("", format!("◐ In progress, due {}", doc.due_date)),
-                DocumentStatusKind::NotStarted => ("", format!("○ Not started, due {}", doc.due_date)),
-                DocumentStatusKind::Overdue => ("bad", format!("✗ Overdue (was due {})", doc.due_date)),
+                DocumentStatusKind::InProgress => {
+                    ("", format!("◐ In progress, due {}", doc.due_date))
+                }
+                DocumentStatusKind::NotStarted => {
+                    ("", format!("○ Not started, due {}", doc.due_date))
+                }
+                DocumentStatusKind::Overdue => {
+                    ("bad", format!("✗ Overdue (was due {})", doc.due_date))
+                }
             };
-            writeln!(out, r#"<li class="{}"><strong>{}</strong> ({}): {}</li>"#,
-                class, html_escape(&doc.name), html_escape(&doc.id), status_str).unwrap();
+            writeln!(
+                out,
+                r#"<li class="{}"><strong>{}</strong> ({}): {}</li>"#,
+                class,
+                html_escape(&doc.name),
+                html_escape(&doc.id),
+                status_str
+            )
+            .unwrap();
         }
         writeln!(out, r#"</ul>"#).unwrap();
     }
@@ -233,8 +369,14 @@ fn render_page2(out: &mut String, data: &ReportData) {
     } else {
         writeln!(out, r#"<ul>"#).unwrap();
         for m in &data.project.milestones {
-            writeln!(out, r#"<li><strong>{}</strong>: {} ({} days)</li>"#,
-                m.date, html_escape(&m.name), m.days_until).unwrap();
+            writeln!(
+                out,
+                r#"<li><strong>{}</strong>: {} ({} days)</li>"#,
+                m.date,
+                html_escape(&m.name),
+                m.days_until
+            )
+            .unwrap();
         }
         writeln!(out, r#"</ul>"#).unwrap();
     }

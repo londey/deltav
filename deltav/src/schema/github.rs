@@ -143,10 +143,7 @@ mod tests {
             projects: vec![],
             distractions: vec![],
         };
-        assert_eq!(
-            config.api_url(),
-            "https://github.mycompany.com/api/v3"
-        );
+        assert_eq!(config.api_url(), "https://github.mycompany.com/api/v3");
     }
 
     #[test]
@@ -157,10 +154,7 @@ mod tests {
             projects: vec![],
             distractions: vec![],
         };
-        assert_eq!(
-            config.api_url(),
-            "https://github.mycompany.com/api/v3"
-        );
+        assert_eq!(config.api_url(), "https://github.mycompany.com/api/v3");
     }
 
     #[test]

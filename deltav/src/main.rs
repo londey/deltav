@@ -118,15 +118,20 @@ fn cmd_validate(config: std::path::PathBuf) -> Result<()> {
 
     eprintln!("✓ {} is valid", config.display());
     eprintln!("  Project: {}", parsed.project.name);
-    eprintln!("  Duration: {} to {} ({} days)",
+    eprintln!(
+        "  Duration: {} to {} ({} days)",
         parsed.project.start_date,
         parsed.project.end_date,
-        parsed.project.duration_days());
+        parsed.project.duration_days()
+    );
     eprintln!("  Team: {} members", parsed.team.headcount());
     eprintln!("  Organisations: {}", parsed.github.org_names().join(", "));
     eprintln!("  CSCIs: {}", parsed.deliverables.csci.len());
     eprintln!("  Documents: {}", parsed.deliverables.documents.len());
-    eprintln!("  External dependencies: {}", parsed.dependencies.external.len());
+    eprintln!(
+        "  External dependencies: {}",
+        parsed.dependencies.external.len()
+    );
 
     Ok(())
 }
@@ -220,8 +225,7 @@ fn iso_week_to_date(year: i32, week: u32) -> Result<chrono::NaiveDate> {
     use chrono::{Datelike, NaiveDate};
 
     // Find Jan 4 of the year (always in week 1)
-    let jan4 = NaiveDate::from_ymd_opt(year, 1, 4)
-        .context("Invalid year")?;
+    let jan4 = NaiveDate::from_ymd_opt(year, 1, 4).context("Invalid year")?;
 
     // Find Monday of week 1
     let week1_monday = jan4 - chrono::Duration::days(jan4.weekday().num_days_from_monday() as i64);
@@ -272,7 +276,9 @@ fn generate_sample_report(
         capacity: CapacitySummary {
             nominal: config.team.nominal_capacity(),
             actual: config.team.average_capacity(week_start, week_end),
-            leave: config.team.leave_in_range(week_start, week_end)
+            leave: config
+                .team
+                .leave_in_range(week_start, week_end)
                 .iter()
                 .filter_map(|l| {
                     config.team.member_by_github(&l.github).map(|m| LeaveEntry {
@@ -296,45 +302,62 @@ fn generate_sample_report(
             total_days: config.project.duration_days(),
             percent_elapsed: config.project.percent_elapsed(as_of),
         },
-        cscis: config.deliverables.csci.iter().map(|c| CsciStatus {
-            id: c.id.clone(),
-            name: c.name.clone(),
-            target_date: c.target_date,
-            days_until: c.days_until_target(as_of),
-            total_tickets: 0, // Would fetch from GitHub
-            tier1_complete: 0,
-            tier2_complete: 0,
-            completion_percent: 0.0,
-            projection: Projection::OnTrack,
-            buffer_days: 0,
-        }).collect(),
-        dependencies: config.dependencies.external.iter().map(|d| DependencyStatus {
-            id: d.id.clone(),
-            name: d.name.clone(),
-            owner: d.owner.clone(),
-            rc_due: d.rc_due,
-            final_due: d.final_due,
-            rc_received: false, // Would need manual tracking
-            final_received: false,
-            status: if d.is_rc_overdue(as_of) {
-                DependencyStatusKind::RcOverdue
-            } else {
-                DependencyStatusKind::Pending
-            },
-        }).collect(),
-        documents: config.deliverables.documents.iter().map(|doc| DocumentStatus {
-            id: doc.id.clone(),
-            name: doc.name.clone(),
-            due_date: doc.due_date,
-            status: if doc.is_overdue(as_of) {
-                DocumentStatusKind::Overdue
-            } else {
-                DocumentStatusKind::NotStarted
-            },
-            completed_date: None,
-            note: None,
-        }).collect(),
-        milestones: config.deliverables.upcoming_milestones(as_of, 90)
+        cscis: config
+            .deliverables
+            .csci
+            .iter()
+            .map(|c| CsciStatus {
+                id: c.id.clone(),
+                name: c.name.clone(),
+                target_date: c.target_date,
+                days_until: c.days_until_target(as_of),
+                total_tickets: 0, // Would fetch from GitHub
+                tier1_complete: 0,
+                tier2_complete: 0,
+                completion_percent: 0.0,
+                projection: Projection::OnTrack,
+                buffer_days: 0,
+            })
+            .collect(),
+        dependencies: config
+            .dependencies
+            .external
+            .iter()
+            .map(|d| DependencyStatus {
+                id: d.id.clone(),
+                name: d.name.clone(),
+                owner: d.owner.clone(),
+                rc_due: d.rc_due,
+                final_due: d.final_due,
+                rc_received: false, // Would need manual tracking
+                final_received: false,
+                status: if d.is_rc_overdue(as_of) {
+                    DependencyStatusKind::RcOverdue
+                } else {
+                    DependencyStatusKind::Pending
+                },
+            })
+            .collect(),
+        documents: config
+            .deliverables
+            .documents
+            .iter()
+            .map(|doc| DocumentStatus {
+                id: doc.id.clone(),
+                name: doc.name.clone(),
+                due_date: doc.due_date,
+                status: if doc.is_overdue(as_of) {
+                    DocumentStatusKind::Overdue
+                } else {
+                    DocumentStatusKind::NotStarted
+                },
+                completed_date: None,
+                note: None,
+            })
+            .collect(),
+        milestones: config
+            .deliverables
+            .upcoming_milestones(as_of, 90)
             .iter()
             .map(|m| MilestoneStatus {
                 id: m.id.clone(),
@@ -345,5 +368,9 @@ fn generate_sample_report(
             .collect(),
     };
 
-    Ok(ReportData { meta, weekly, project })
+    Ok(ReportData {
+        meta,
+        weekly,
+        project,
+    })
 }

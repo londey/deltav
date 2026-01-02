@@ -3,7 +3,7 @@
 //! Handles generating weekly reports in various formats.
 
 pub mod data;
-pub mod markdown;
 pub mod html;
+pub mod markdown;
 
 pub use data::ReportData;

@@ -90,7 +90,12 @@ impl ExternalDependency {
     }
 
     /// Get the status of this dependency.
-    pub fn status(&self, as_of: NaiveDate, rc_received: bool, final_received: bool) -> DependencyStatus {
+    pub fn status(
+        &self,
+        as_of: NaiveDate,
+        rc_received: bool,
+        final_received: bool,
+    ) -> DependencyStatus {
         if final_received {
             DependencyStatus::Complete
         } else if rc_received {
@@ -166,7 +171,10 @@ impl DependencyStatus {
 
     /// Is this status problematic?
     pub fn is_at_risk(&self) -> bool {
-        matches!(self, DependencyStatus::RcOverdue | DependencyStatus::FinalOverdue)
+        matches!(
+            self,
+            DependencyStatus::RcOverdue | DependencyStatus::FinalOverdue
+        )
     }
 }
 
@@ -212,10 +220,7 @@ mod tests {
             dep.status(after_rc, true, false),
             DependencyStatus::RcReceived
         );
-        assert_eq!(
-            dep.status(after_rc, true, true),
-            DependencyStatus::Complete
-        );
+        assert_eq!(dep.status(after_rc, true, true), DependencyStatus::Complete);
     }
 
     #[test]

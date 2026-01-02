@@ -18,8 +18,18 @@ pub fn render(data: &ReportData) -> String {
 
 fn render_page1(out: &mut String, data: &ReportData) {
     // Header
-    writeln!(out, "# DELTAV WEEKLY REPORT — {} — {}", data.meta.project_name, data.meta.week).unwrap();
-    writeln!(out, "**{} to {}**\n", data.meta.week_start, data.meta.week_end).unwrap();
+    writeln!(
+        out,
+        "# DELTAV WEEKLY REPORT — {} — {}",
+        data.meta.project_name, data.meta.week
+    )
+    .unwrap();
+    writeln!(
+        out,
+        "**{} to {}**\n",
+        data.meta.week_start, data.meta.week_end
+    )
+    .unwrap();
 
     // Deliveries this week
     writeln!(out, "## Deliveries This Week\n").unwrap();
@@ -27,8 +37,17 @@ fn render_page1(out: &mut String, data: &ReportData) {
         writeln!(out, "_No deliveries this week._\n").unwrap();
     } else {
         for delivery in &data.weekly.deliveries {
-            let blocked_note = if delivery.was_blocked { " (was blocked)" } else { "" };
-            writeln!(out, "- ☑ {} — {}{}", delivery.id, delivery.name, blocked_note).unwrap();
+            let blocked_note = if delivery.was_blocked {
+                " (was blocked)"
+            } else {
+                ""
+            };
+            writeln!(
+                out,
+                "- ☑ {} — {}{}",
+                delivery.id, delivery.name, blocked_note
+            )
+            .unwrap();
         }
         out.push('\n');
     }
@@ -36,16 +55,16 @@ fn render_page1(out: &mut String, data: &ReportData) {
     // Ticket summary
     writeln!(out, "## Ticket Summary\n").unwrap();
     let tickets = &data.weekly.tickets;
-    writeln!(
-        out,
-        "| Metric | Value |",
-    ).unwrap();
+    writeln!(out, "| Metric | Value |",).unwrap();
     writeln!(out, "|--------|-------|").unwrap();
     writeln!(
         out,
         "| Closed | {} ({} from {}) |",
-        tickets.closed, tickets.closed_trend(), tickets.closed_prev
-    ).unwrap();
+        tickets.closed,
+        tickets.closed_trend(),
+        tickets.closed_prev
+    )
+    .unwrap();
     writeln!(out, "| Opened | {} |", tickets.opened).unwrap();
     writeln!(out, "| Net | {:+} toward done |", tickets.net).unwrap();
     writeln!(out, "| Points Delivered | {} |", tickets.points_delivered).unwrap();
@@ -71,18 +90,33 @@ fn render_page1(out: &mut String, data: &ReportData) {
     } else {
         for leave in &capacity.leave {
             let reason = leave.reason.as_deref().unwrap_or("leave");
-            writeln!(out, "- **{}**: {} ({}% capacity)", leave.name, reason, leave.capacity_percent).unwrap();
+            writeln!(
+                out,
+                "- **{}**: {} ({}% capacity)",
+                leave.name, reason, leave.capacity_percent
+            )
+            .unwrap();
         }
         out.push('\n');
     }
-    writeln!(out, "- Adjusted velocity expectation: {} points", capacity.expected_velocity).unwrap();
+    writeln!(
+        out,
+        "- Adjusted velocity expectation: {} points",
+        capacity.expected_velocity
+    )
+    .unwrap();
     writeln!(
         out,
         "- Actual: {} points ({:.0}% of adjusted target) {}",
         capacity.actual_velocity,
         capacity.performance_percent(),
-        if capacity.performance_percent() >= 100.0 { "✓" } else { "" }
-    ).unwrap();
+        if capacity.performance_percent() >= 100.0 {
+            "✓"
+        } else {
+            ""
+        }
+    )
+    .unwrap();
     out.push('\n');
 
     // Blocked tickets
@@ -95,7 +129,8 @@ fn render_page1(out: &mut String, data: &ReportData) {
                 out,
                 "- **{}#{}**: {} — _blocked on: {}_",
                 blocked.repo, blocked.number, blocked.title, blocked.blocked_on
-            ).unwrap();
+            )
+            .unwrap();
         }
         out.push('\n');
     }
@@ -106,7 +141,8 @@ fn render_page1(out: &mut String, data: &ReportData) {
         writeln!(out, "_No non-project work recorded._\n").unwrap();
     } else {
         for distraction in &data.weekly.distractions {
-            let hours = distraction.estimated_hours
+            let hours = distraction
+                .estimated_hours
                 .map(|h| format!(", ~{:.0} hours", h))
                 .unwrap_or_default();
             let assignees = if distraction.assignees.is_empty() {
@@ -118,7 +154,8 @@ fn render_page1(out: &mut String, data: &ReportData) {
                 out,
                 "- **{}**: {} tickets{}{}",
                 distraction.name, distraction.ticket_count, hours, assignees
-            ).unwrap();
+            )
+            .unwrap();
         }
         out.push('\n');
     }
@@ -134,27 +171,54 @@ fn render_page2(out: &mut String, data: &ReportData) {
         data.project.timeline.days_elapsed,
         data.project.timeline.total_days,
         data.project.timeline.percent_elapsed
-    ).unwrap();
+    )
+    .unwrap();
 
     // CSCI completion
     writeln!(out, "## CSCI Completion\n").unwrap();
     writeln!(out, "_Adjusted for backlog completeness estimate._\n").unwrap();
-    
+
     for csci in &data.project.cscis {
-        writeln!(out, "### {} ({}) — Target: {}\n", csci.name, csci.id, csci.target_date).unwrap();
+        writeln!(
+            out,
+            "### {} ({}) — Target: {}\n",
+            csci.name, csci.id, csci.target_date
+        )
+        .unwrap();
         writeln!(out, "```").unwrap();
-        writeln!(out, "{} {:.0}% complete", csci.progress_bar(25), csci.completion_percent).unwrap();
+        writeln!(
+            out,
+            "{} {:.0}% complete",
+            csci.progress_bar(25),
+            csci.completion_percent
+        )
+        .unwrap();
         writeln!(out, "```\n").unwrap();
-        writeln!(out, "- **Tier 1** (integration-ready): {}/{} tickets", csci.tier1_complete, csci.total_tickets).unwrap();
-        writeln!(out, "- **Tier 2** (HIL-passed): {}/{} tickets", csci.tier2_complete, csci.total_tickets).unwrap();
+        writeln!(
+            out,
+            "- **Tier 1** (integration-ready): {}/{} tickets",
+            csci.tier1_complete, csci.total_tickets
+        )
+        .unwrap();
+        writeln!(
+            out,
+            "- **Tier 2** (HIL-passed): {}/{} tickets",
+            csci.tier2_complete, csci.total_tickets
+        )
+        .unwrap();
         writeln!(
             out,
             "- **Projection**: {} {} ({} days {})",
             csci.projection.symbol(),
             csci.projection.as_str(),
             csci.buffer_days.abs(),
-            if csci.buffer_days >= 0 { "buffer" } else { "behind" }
-        ).unwrap();
+            if csci.buffer_days >= 0 {
+                "buffer"
+            } else {
+                "behind"
+            }
+        )
+        .unwrap();
         out.push('\n');
     }
 
@@ -166,16 +230,29 @@ fn render_page2(out: &mut String, data: &ReportData) {
         writeln!(out, "| ID | Name | Owner | RC | Final | Status |").unwrap();
         writeln!(out, "|----|------|-------|-----|-------|--------|").unwrap();
         for dep in &data.project.dependencies {
-            let rc_status = if dep.rc_received { "✓" } else { dep.status.symbol() };
+            let rc_status = if dep.rc_received {
+                "✓"
+            } else {
+                dep.status.symbol()
+            };
             let final_status = if dep.final_received { "✓" } else { "○" };
             writeln!(
                 out,
                 "| {} | {} | {} | {} {} | {} {} | {} |",
-                dep.id, dep.name, dep.owner,
-                rc_status, dep.rc_due,
-                final_status, dep.final_due,
-                if dep.status.is_at_risk() { "⚠ At Risk" } else { "" }
-            ).unwrap();
+                dep.id,
+                dep.name,
+                dep.owner,
+                rc_status,
+                dep.rc_due,
+                final_status,
+                dep.final_due,
+                if dep.status.is_at_risk() {
+                    "⚠ At Risk"
+                } else {
+                    ""
+                }
+            )
+            .unwrap();
         }
         out.push('\n');
     }
@@ -188,7 +265,10 @@ fn render_page2(out: &mut String, data: &ReportData) {
         for doc in &data.project.documents {
             let status_str = match doc.status {
                 DocumentStatusKind::Complete => {
-                    let date = doc.completed_date.map(|d| d.to_string()).unwrap_or_default();
+                    let date = doc
+                        .completed_date
+                        .map(|d| d.to_string())
+                        .unwrap_or_default();
                     format!("✓ Complete ({})", date)
                 }
                 DocumentStatusKind::InProgress => {
@@ -217,7 +297,8 @@ fn render_page2(out: &mut String, data: &ReportData) {
                 out,
                 "- **{}**: {} ({} days)",
                 milestone.date, milestone.name, milestone.days_until
-            ).unwrap();
+            )
+            .unwrap();
         }
         out.push('\n');
     }
