@@ -50,20 +50,19 @@ impl Issue {
 
     /// Get the size label (XS, S, M, L, XL) if present.
     pub fn size_label(&self) -> Option<&str> {
-        for label in &self.labels {
+        const SIZES: [&str; 5] = ["XS", "S", "M", "L", "XL"];
+
+        self.labels.iter().find_map(|label| {
             let upper = label.name.to_uppercase();
-            if matches!(upper.as_str(), "XS" | "S" | "M" | "L" | "XL") {
-                return Some(&label.name);
-            }
-            // Also check for "size:" prefix
-            if let Some(size) = label.name.strip_prefix("size:") {
-                let size_upper = size.trim().to_uppercase();
-                if matches!(size_upper.as_str(), "XS" | "S" | "M" | "L" | "XL") {
-                    return Some(&label.name);
-                }
-            }
-        }
-        None
+            let is_size = SIZES.contains(&upper.as_str());
+            let is_prefixed_size = label
+                .name
+                .strip_prefix("size:")
+                .map(|s| SIZES.contains(&s.trim().to_uppercase().as_str()))
+                .unwrap_or(false);
+
+            (is_size || is_prefixed_size).then_some(label.name.as_str())
+        })
     }
 
     /// Check if the issue is closed.

@@ -336,7 +336,7 @@ fn render_page2(out: &mut String, data: &ReportData) {
         writeln!(out, r#"<ul>"#).unwrap();
         for doc in &data.project.documents {
             let (class, status_str) = match doc.status {
-                DocumentStatusKind::Complete => ("good", format!("✓ Complete")),
+                DocumentStatusKind::Complete => ("good", "✓ Complete".to_string()),
                 DocumentStatusKind::InProgress => {
                     ("", format!("◐ In progress, due {}", doc.due_date))
                 }

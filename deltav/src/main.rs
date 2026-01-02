@@ -4,6 +4,18 @@
 //! GitHub Enterprise. Generates weekly reports showing team velocity, CSCI
 //! completion, and external dependency status.
 
+#![deny(unsafe_code)]
+#![cfg_attr(all(not(debug_assertions), not(test)), deny(clippy::all))]
+#![cfg_attr(all(not(debug_assertions), not(test)), deny(clippy::pedantic))]
+#![cfg_attr(all(not(debug_assertions), not(test)), deny(missing_docs))]
+// Allow some pedantic lints that are too strict for this project
+#![allow(clippy::module_name_repetitions)]
+#![allow(clippy::must_use_candidate)]
+#![allow(clippy::missing_errors_doc)]
+#![allow(clippy::missing_panics_doc)]
+#![allow(unused_imports)]
+#![allow(dead_code)]
+
 mod cli;
 mod github;
 mod report;

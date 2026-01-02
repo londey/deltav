@@ -75,11 +75,11 @@ impl GitHubClient {
                 break;
             }
 
-            for repo in response {
-                if pattern.is_match(&repo.name) {
-                    all_repos.push(repo);
-                }
-            }
+            all_repos.extend(
+                response
+                    .into_iter()
+                    .filter(|repo| pattern.is_match(&repo.name)),
+            );
 
             page += 1;
         }
@@ -125,11 +125,11 @@ impl GitHubClient {
             }
 
             // Filter out pull requests (GitHub API returns PRs in issues endpoint)
-            for issue in response {
-                if issue.pull_request.is_none() {
-                    all_issues.push(issue);
-                }
-            }
+            all_issues.extend(
+                response
+                    .into_iter()
+                    .filter(|issue| issue.pull_request.is_none()),
+            );
 
             page += 1;
         }
@@ -171,21 +171,18 @@ impl GitHubClient {
             }
 
             // If we have a since filter, stop when we hit older PRs
-            if let Some(since) = since {
-                let mut found_older = false;
-                for pr in response {
-                    if pr.updated_at >= since {
-                        all_prs.push(pr);
-                    } else {
-                        found_older = true;
-                        break;
-                    }
-                }
-                if found_older {
-                    break;
-                }
-            } else {
+            let Some(since) = since else {
                 all_prs.extend(response);
+                page += 1;
+                continue;
+            };
+
+            let response_len = response.len();
+            let prev_len = all_prs.len();
+            all_prs.extend(response.into_iter().take_while(|pr| pr.updated_at >= since));
+            // If we didn't take all PRs, we hit an older one - stop paginating
+            if all_prs.len() - prev_len < response_len {
+                break;
             }
 
             page += 1;

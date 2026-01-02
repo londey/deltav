@@ -105,7 +105,7 @@ pub fn parse_iso_week(s: &str) -> anyhow::Result<(i32, u32)> {
         .parse()
         .map_err(|_| anyhow::anyhow!("Invalid week number in ISO week"))?;
 
-    if week < 1 || week > 53 {
+    if !(1..=53).contains(&week) {
         anyhow::bail!("Week number must be between 1 and 53");
     }
 
