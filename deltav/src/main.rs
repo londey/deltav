@@ -402,16 +402,25 @@ fn generate_report_from_github(
     week_start: chrono::NaiveDate,
     week_end: chrono::NaiveDate,
 ) -> Result<report::ReportData> {
-    use chrono::{TimeZone, Utc};
+    use chrono::{Duration, TimeZone, Utc};
     use report::data::*;
 
     let as_of = week_end;
 
-    // Convert week boundaries to UTC timestamps for API queries
-    let week_start_utc = Utc.from_utc_datetime(&week_start.and_hms_opt(0, 0, 0).unwrap());
-    let _week_end_utc = Utc.from_utc_datetime(&week_end.and_hms_opt(23, 59, 59).unwrap());
+    // Calculate previous weeks for historical velocity (4-week rolling average)
+    const VELOCITY_WEEKS: i64 = 4;
+    let historical_start = week_start - Duration::weeks(VELOCITY_WEEKS);
 
-    // Fetch issues from all configured organizations
+    // Convert to UTC timestamps for API queries
+    let historical_start_utc =
+        Utc.from_utc_datetime(&historical_start.and_hms_opt(0, 0, 0).unwrap());
+    let week_start_utc = Utc.from_utc_datetime(&week_start.and_hms_opt(0, 0, 0).unwrap());
+
+    // Previous week boundaries for comparison
+    let prev_week_start = week_start - Duration::weeks(1);
+    let prev_week_end = week_end - Duration::weeks(1);
+
+    // Fetch issues from all configured organizations (including historical data)
     let mut all_issues: Vec<github::Issue> = Vec::new();
     let mut repos_fetched = 0;
 
@@ -422,11 +431,11 @@ fn generate_report_from_github(
 
         for repo in &repos {
             eprintln!("  Fetching issues from {}/{}", org.name, repo.name);
-            // Fetch issues updated since start of week (to catch closed issues)
+            // Fetch issues updated since historical start (to get velocity history)
             let issues = client.fetch_issues(
                 &org.name,
                 &repo.name,
-                Some(week_start_utc),
+                Some(historical_start_utc),
                 github::IssueState::All,
             )?;
             eprintln!("    Found {} issues", issues.len());
@@ -441,15 +450,41 @@ fn generate_report_from_github(
         repos_fetched
     );
 
-    // Calculate ticket metrics
+    // Calculate ticket metrics for current week
     let (closed_this_week, opened_this_week, points_delivered) =
         calculate_ticket_metrics(&all_issues, week_start, week_end, &config.sizing);
+
+    // Calculate previous week metrics for comparison
+    let (closed_prev_week, _, _) =
+        calculate_ticket_metrics(&all_issues, prev_week_start, prev_week_end, &config.sizing);
+
+    // Calculate rolling velocity average (4-week)
+    let velocity_avg = calculate_rolling_velocity(
+        &all_issues,
+        week_end,
+        VELOCITY_WEEKS as usize,
+        &config.sizing,
+    );
+
+    // Calculate expected velocity based on capacity ratio
+    let nominal_capacity = config.team.nominal_capacity();
+    let actual_capacity = config.team.average_capacity(week_start, week_end);
+    let capacity_ratio = if nominal_capacity > 0.0 {
+        actual_capacity / nominal_capacity
+    } else {
+        1.0
+    };
+    // Expected velocity = rolling average adjusted for capacity
+    let expected_velocity = (velocity_avg * capacity_ratio).round() as u32;
 
     // Find blocked issues (issues with "blocked" label)
     let blocked_tickets = find_blocked_tickets(&all_issues);
 
     // Count open issues for backlog
     let open_issues = all_issues.iter().filter(|i| i.is_open()).count() as u32;
+
+    // Fetch deliveries from releases
+    let deliveries = fetch_deliveries(client, &config.github.delivery_repos, week_start, week_end)?;
 
     // Build meta
     let meta = ReportMeta {
@@ -462,14 +497,14 @@ fn generate_report_from_github(
 
     // Build weekly summary
     let weekly = WeeklySummary {
-        deliveries: vec![], // Would need to track completed CSCIs/documents
+        deliveries,
         tickets: TicketSummary {
             closed: closed_this_week,
-            closed_prev: 0, // Would need to fetch previous week
+            closed_prev: closed_prev_week,
             opened: opened_this_week,
             net: closed_this_week as i32 - opened_this_week as i32,
             points_delivered,
-            velocity_avg: points_delivered as f64, // Would need historical data
+            velocity_avg,
         },
         backlog: BacklogChange {
             start: open_issues + closed_this_week, // Estimate
@@ -478,8 +513,8 @@ fn generate_report_from_github(
             new_work_note: None,
         },
         capacity: CapacitySummary {
-            nominal: config.team.nominal_capacity(),
-            actual: config.team.average_capacity(week_start, week_end),
+            nominal: nominal_capacity,
+            actual: actual_capacity,
             leave: config
                 .team
                 .leave_in_range(week_start, week_end)
@@ -492,7 +527,7 @@ fn generate_report_from_github(
                     })
                 })
                 .collect(),
-            expected_velocity: 0,
+            expected_velocity,
             actual_velocity: points_delivered,
         },
         blocked: blocked_tickets,
@@ -512,42 +547,8 @@ fn generate_report_from_github(
             as_of,
             config.project.backlog_completeness,
         ),
-        dependencies: config
-            .dependencies
-            .external
-            .iter()
-            .map(|d| DependencyStatus {
-                id: d.id.clone(),
-                name: d.name.clone(),
-                owner: d.owner.clone(),
-                rc_due: d.rc_due,
-                final_due: d.final_due,
-                rc_received: false,
-                final_received: false,
-                status: if d.is_rc_overdue(as_of) {
-                    DependencyStatusKind::RcOverdue
-                } else {
-                    DependencyStatusKind::Pending
-                },
-            })
-            .collect(),
-        documents: config
-            .deliverables
-            .documents
-            .iter()
-            .map(|doc| DocumentStatus {
-                id: doc.id.clone(),
-                name: doc.name.clone(),
-                due_date: doc.due_date,
-                status: if doc.is_overdue(as_of) {
-                    DocumentStatusKind::Overdue
-                } else {
-                    DocumentStatusKind::NotStarted
-                },
-                completed_date: None,
-                note: None,
-            })
-            .collect(),
+        dependencies: fetch_dependency_status(client, &config.dependencies.external, as_of),
+        documents: calculate_document_status(&all_issues, &config.deliverables.documents, as_of),
         milestones: config
             .deliverables
             .upcoming_milestones(as_of, 90)
@@ -622,6 +623,56 @@ fn calculate_ticket_metrics(
     (closed, opened, points)
 }
 
+/// Calculate rolling velocity average over N weeks.
+///
+/// Calculates the average story points delivered per week over the specified
+/// number of weeks ending on the given date.
+///
+/// # Arguments
+///
+/// * `issues` - All issues to analyze.
+/// * `end_date` - The end date of the most recent week.
+/// * `num_weeks` - Number of weeks to include in the average.
+/// * `sizing` - T-shirt sizing configuration for point calculations.
+///
+/// # Returns
+///
+/// The average points delivered per week. Returns 0.0 if no weeks have data.
+fn calculate_rolling_velocity(
+    issues: &[github::Issue],
+    end_date: chrono::NaiveDate,
+    num_weeks: usize,
+    sizing: &schema::Sizing,
+) -> f64 {
+    use chrono::Duration;
+
+    if num_weeks == 0 {
+        return 0.0;
+    }
+
+    let mut total_points = 0u32;
+    let mut weeks_with_data = 0usize;
+
+    for week_offset in 0..num_weeks {
+        let week_end = end_date - Duration::weeks(week_offset as i64);
+        let week_start = week_end - Duration::days(6);
+
+        let (_, _, points) = calculate_ticket_metrics(issues, week_start, week_end, sizing);
+
+        // Only count weeks that have any closed issues
+        if points > 0 {
+            total_points += points;
+            weeks_with_data += 1;
+        }
+    }
+
+    if weeks_with_data > 0 {
+        total_points as f64 / weeks_with_data as f64
+    } else {
+        0.0
+    }
+}
+
 /// Find blocked tickets (issues with "blocked" label).
 ///
 /// Identifies open issues that have a label starting with "blocked"
@@ -653,6 +704,65 @@ fn find_blocked_tickets(issues: &[github::Issue]) -> Vec<report::data::BlockedTi
             }
         })
         .collect()
+}
+
+/// Fetch deliveries from releases in configured delivery repositories.
+///
+/// Retrieves releases published during the reporting week from repositories
+/// configured as delivery sources.
+///
+/// # Arguments
+///
+/// * `client` - Authenticated GitHub API client.
+/// * `delivery_repos` - Delivery repository configurations.
+/// * `week_start` - First day (Monday) of the reporting week.
+/// * `week_end` - Last day (Sunday) of the reporting week.
+///
+/// # Returns
+///
+/// A vector of delivery items for releases published this week.
+///
+/// # Errors
+///
+/// Returns an error if GitHub API requests fail.
+fn fetch_deliveries(
+    client: &github::GitHubClient,
+    delivery_repos: &[schema::DeliveryRepo],
+    week_start: chrono::NaiveDate,
+    week_end: chrono::NaiveDate,
+) -> Result<Vec<report::data::DeliveryItem>> {
+    use report::data::{DeliveryItem, DeliveryKind};
+
+    let mut deliveries = Vec::new();
+
+    for repo in delivery_repos {
+        match client.fetch_releases(&repo.org, &repo.repo, Some(30)) {
+            Ok(releases) => {
+                for release in releases {
+                    if release.published_in_range(week_start, week_end) {
+                        deliveries.push(DeliveryItem {
+                            id: release.tag_name.clone(),
+                            name: format!(
+                                "{} {}",
+                                repo.display_name(),
+                                release.display_name()
+                            ),
+                            kind: DeliveryKind::Release,
+                            was_blocked: false,
+                        });
+                    }
+                }
+            }
+            Err(e) => {
+                eprintln!(
+                    "  Warning: Could not fetch releases from {}/{}: {}",
+                    repo.org, repo.repo, e
+                );
+            }
+        }
+    }
+
+    Ok(deliveries)
 }
 
 /// Fetch distraction work from configured repositories.
@@ -716,6 +826,161 @@ fn fetch_distractions(
     Ok(distractions)
 }
 
+/// Fetch dependency status from GitHub tracking issues.
+///
+/// For dependencies with a `tracking_issue` configured, fetches the issue
+/// and determines status based on labels:
+/// - "rc-received" label → RC received
+/// - "final-received" or closed issue → Final received
+///
+/// # Arguments
+///
+/// * `client` - Authenticated GitHub API client.
+/// * `dependencies` - Dependency definitions from the project configuration.
+/// * `as_of` - Reference date for calculating overdue status.
+///
+/// # Returns
+///
+/// A vector of dependency status entries for the report.
+fn fetch_dependency_status(
+    client: &github::GitHubClient,
+    dependencies: &[schema::ExternalDependency],
+    as_of: chrono::NaiveDate,
+) -> Vec<report::data::DependencyStatus> {
+    use report::data::{DependencyStatus, DependencyStatusKind};
+
+    dependencies
+        .iter()
+        .map(|dep| {
+            // Try to fetch tracking issue status
+            let (rc_received, final_received) =
+                if let Some((org, repo, number)) = dep.parse_tracking_issue() {
+                    match client.fetch_issue(org, repo, number as u64) {
+                        Ok(issue) => {
+                            // Check for status labels
+                            let rc = issue.has_label("rc-received")
+                                || issue.has_label_prefix("rc-received");
+                            let final_recv = issue.has_label("final-received")
+                                || issue.has_label_prefix("final-received")
+                                || issue.is_closed();
+                            (rc || final_recv, final_recv)
+                        }
+                        Err(e) => {
+                            eprintln!(
+                                "  Warning: Could not fetch tracking issue for {}: {}",
+                                dep.id, e
+                            );
+                            (false, false)
+                        }
+                    }
+                } else {
+                    (false, false)
+                };
+
+            // Calculate status based on received flags and due dates
+            let status_kind = if final_received {
+                DependencyStatusKind::Complete
+            } else if rc_received {
+                if dep.is_final_overdue(as_of) {
+                    DependencyStatusKind::FinalOverdue
+                } else {
+                    DependencyStatusKind::RcReceived
+                }
+            } else if dep.is_rc_overdue(as_of) {
+                DependencyStatusKind::RcOverdue
+            } else {
+                DependencyStatusKind::Pending
+            };
+
+            DependencyStatus {
+                id: dep.id.clone(),
+                name: dep.name.clone(),
+                owner: dep.owner.clone(),
+                rc_due: dep.rc_due,
+                final_due: dep.final_due,
+                rc_received,
+                final_received,
+                status: status_kind,
+            }
+        })
+        .collect()
+}
+
+/// Fetch document status from GitHub issues with status labels.
+///
+/// For documents with a `status_label` configured, searches for issues
+/// with that label and determines status:
+/// - Any open issue with the label → In Progress
+/// - Closed issue with the label → Complete
+/// - No issues found → Not Started (or Overdue if past due date)
+///
+/// # Arguments
+///
+/// * `all_issues` - All issues fetched from GitHub.
+/// * `documents` - Document definitions from the project configuration.
+/// * `as_of` - Reference date for calculating overdue status.
+///
+/// # Returns
+///
+/// A vector of document status entries for the report.
+fn calculate_document_status(
+    all_issues: &[github::Issue],
+    documents: &[schema::Document],
+    as_of: chrono::NaiveDate,
+) -> Vec<report::data::DocumentStatus> {
+    use report::data::{DocumentStatus, DocumentStatusKind};
+
+    documents
+        .iter()
+        .map(|doc| {
+            // Find issues with the document's status label
+            let doc_issues: Vec<_> = if let Some(ref label) = doc.status_label {
+                all_issues.iter().filter(|i| i.has_label(label)).collect()
+            } else {
+                vec![]
+            };
+
+            let (status, completed_date) = if doc_issues.is_empty() {
+                // No tracking issues found
+                if doc.is_overdue(as_of) {
+                    (DocumentStatusKind::Overdue, None)
+                } else {
+                    (DocumentStatusKind::NotStarted, None)
+                }
+            } else {
+                // Check if all tracking issues are closed
+                let all_closed = doc_issues.iter().all(|i| i.is_closed());
+                let any_open = doc_issues.iter().any(|i| i.is_open());
+
+                if all_closed {
+                    // Find latest close date
+                    let latest_close = doc_issues
+                        .iter()
+                        .filter_map(|i| i.closed_at)
+                        .max()
+                        .map(|dt| dt.date_naive());
+                    (DocumentStatusKind::Complete, latest_close)
+                } else if any_open {
+                    (DocumentStatusKind::InProgress, None)
+                } else if doc.is_overdue(as_of) {
+                    (DocumentStatusKind::Overdue, None)
+                } else {
+                    (DocumentStatusKind::NotStarted, None)
+                }
+            };
+
+            DocumentStatus {
+                id: doc.id.clone(),
+                name: doc.name.clone(),
+                due_date: doc.due_date,
+                status,
+                completed_date,
+                note: None,
+            }
+        })
+        .collect()
+}
+
 /// Calculate CSCI status by matching issues to CSCIs.
 ///
 /// For each CSCI, counts the issues in its associated repositories and
@@ -753,14 +1018,26 @@ fn calculate_csci_status(
                 .collect();
 
             let total = csci_issues.len() as u32;
-            let closed = csci_issues.iter().filter(|i| i.is_closed()).count() as u32;
 
-            // Tier 1 = closed, Tier 2 would require label checking
-            let tier1 = closed;
+            // Tier 1 = closed issues with the CSCI's tier1 label (integration-ready)
+            // Tier 2 = closed issues with the CSCI's tier2 label (HIL-tested)
+            // If no tier labels are found, fall back to counting closed issues
+            let tier1_labeled = csci_issues
+                .iter()
+                .filter(|i| i.is_closed() && i.has_label(&csci.tier1_label))
+                .count() as u32;
             let tier2 = csci_issues
                 .iter()
-                .filter(|i| i.is_closed() && i.has_label("tier2-complete"))
+                .filter(|i| i.is_closed() && i.has_label(&csci.tier2_label))
                 .count() as u32;
+
+            // If no tier1 labels found, use closed count as tier1 (simpler workflow)
+            let closed_count = csci_issues.iter().filter(|i| i.is_closed()).count() as u32;
+            let tier1 = if tier1_labeled > 0 {
+                tier1_labeled
+            } else {
+                closed_count
+            };
 
             // Adjusted completion (accounting for undiscovered work)
             let raw_completion = if total > 0 {

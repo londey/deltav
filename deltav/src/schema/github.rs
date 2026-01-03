@@ -22,6 +22,41 @@ pub struct GitHubConfig {
     /// Non-project work that consumes team capacity.
     #[serde(default)]
     pub distractions: Vec<Distraction>,
+
+    /// Repositories to track for deliveries (releases/tags).
+    ///
+    /// Releases from these repositories will appear in the weekly
+    /// "Deliveries" section of the report.
+    #[serde(default)]
+    pub delivery_repos: Vec<DeliveryRepo>,
+}
+
+/// A repository to track for deliveries via releases/tags.
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct DeliveryRepo {
+    /// Organization containing the repository.
+    pub org: String,
+
+    /// Repository name.
+    pub repo: String,
+
+    /// Human-readable name for the deliverable.
+    ///
+    /// If not provided, uses the repository name.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
+}
+
+impl DeliveryRepo {
+    /// Get the full repository path (org/repo).
+    pub fn full_repo(&self) -> String {
+        format!("{}/{}", self.org, self.repo)
+    }
+
+    /// Get the display name for this deliverable.
+    pub fn display_name(&self) -> &str {
+        self.name.as_deref().unwrap_or(&self.repo)
+    }
 }
 
 impl GitHubConfig {
@@ -156,6 +191,7 @@ mod tests {
             organisations: vec![],
             projects: vec![],
             distractions: vec![],
+            delivery_repos: vec![],
         };
         assert_eq!(config.api_url(), "https://github.mycompany.com/api/v3");
     }
@@ -167,6 +203,7 @@ mod tests {
             organisations: vec![],
             projects: vec![],
             distractions: vec![],
+            delivery_repos: vec![],
         };
         assert_eq!(config.api_url(), "https://github.mycompany.com/api/v3");
     }
@@ -178,6 +215,7 @@ mod tests {
             organisations: vec![],
             projects: vec![],
             distractions: vec![],
+            delivery_repos: vec![],
         };
         assert_eq!(config.api_url(), "https://api.github.com");
         assert!(config.is_public_github());
@@ -190,6 +228,7 @@ mod tests {
             organisations: vec![],
             projects: vec![],
             distractions: vec![],
+            delivery_repos: vec![],
         };
         assert_eq!(config.api_url(), "https://api.github.com");
         assert!(config.is_public_github());

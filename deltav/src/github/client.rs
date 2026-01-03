@@ -419,6 +419,48 @@ impl GitHubClient {
 
         Ok(response.rate)
     }
+
+    /// Fetch releases for a repository.
+    ///
+    /// Retrieves published releases from a repository, excluding drafts.
+    /// Results are returned in reverse chronological order (newest first).
+    ///
+    /// See: <https://docs.github.com/en/rest/releases/releases#list-releases>
+    ///
+    /// # Arguments
+    ///
+    /// * `org` - Organization or user name.
+    /// * `repo` - Repository name.
+    /// * `per_page` - Maximum number of releases to fetch (default 30, max 100).
+    ///
+    /// # Returns
+    ///
+    /// A vector of releases, excluding drafts.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the API request fails.
+    pub fn fetch_releases(&self, org: &str, repo: &str, per_page: Option<u32>) -> Result<Vec<Release>> {
+        let per_page = per_page.unwrap_or(30).min(100);
+        let url = format!(
+            "{}/repos/{}/{}/releases?per_page={}",
+            self.api_url(),
+            org,
+            repo,
+            per_page
+        );
+
+        let releases: Vec<Release> = self
+            .client
+            .get(&url)
+            .send()
+            .with_context(|| format!("Failed to fetch releases from {}/{}", org, repo))?
+            .json()
+            .context("Failed to parse releases response")?;
+
+        // Filter out drafts - only return published releases
+        Ok(releases.into_iter().filter(|r| !r.draft).collect())
+    }
 }
 
 #[cfg(test)]

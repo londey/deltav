@@ -80,6 +80,7 @@ pub enum DeliveryKind {
     Csci,
     Dependency,
     Milestone,
+    Release,
 }
 
 /// Ticket statistics for the week.

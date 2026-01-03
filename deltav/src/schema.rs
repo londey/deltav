@@ -12,7 +12,7 @@ mod team;
 
 pub use deliverables::{Csci, Deliverables, Demonstration, Document};
 pub use dependencies::{Dependencies, ExternalDependency};
-pub use github::{Distraction, GitHubConfig, GitHubProject, Organisation};
+pub use github::{DeliveryRepo, Distraction, GitHubConfig, GitHubProject, Organisation};
 pub use project::Project;
 pub use sizing::{Sizing, TShirtSize};
 pub use team::{Leave, Team, TeamMember};
@@ -93,6 +93,11 @@ impl ProjectConfig {
                     repo: "legacy-system".to_string(),
                     label: Some("unplanned".to_string()),
                     name: "Legacy Support".to_string(),
+                }],
+                delivery_repos: vec![DeliveryRepo {
+                    org: "my-org".to_string(),
+                    repo: "project-fcu".to_string(),
+                    name: Some("FCU Firmware".to_string()),
                 }],
             },
             deliverables: Deliverables {

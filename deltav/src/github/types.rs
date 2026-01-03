@@ -531,6 +531,66 @@ pub struct RateLimitResponse {
     pub rate: RateLimit,
 }
 
+/// A GitHub release.
+///
+/// Corresponds to the release object from the GitHub REST API.
+/// See: <https://docs.github.com/en/rest/releases/releases#get-a-release>
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Release {
+    /// Unique identifier for the release.
+    pub id: u64,
+
+    /// Tag name for this release (e.g., "v1.0.0").
+    pub tag_name: String,
+
+    /// Human-readable release name.
+    pub name: Option<String>,
+
+    /// Release description in Markdown.
+    pub body: Option<String>,
+
+    /// Whether this is a draft release.
+    pub draft: bool,
+
+    /// Whether this is a pre-release.
+    pub prerelease: bool,
+
+    /// When the release was created.
+    pub created_at: DateTime<Utc>,
+
+    /// When the release was published.
+    pub published_at: Option<DateTime<Utc>>,
+
+    /// URL to the release on GitHub.
+    pub html_url: String,
+
+    /// User who created the release.
+    pub author: User,
+}
+
+impl Release {
+    /// Get the display name for this release.
+    ///
+    /// Returns the name if set, otherwise the tag name.
+    pub fn display_name(&self) -> &str {
+        self.name.as_deref().unwrap_or(&self.tag_name)
+    }
+
+    /// Check if this release was published within a date range.
+    pub fn published_in_range(
+        &self,
+        start: chrono::NaiveDate,
+        end: chrono::NaiveDate,
+    ) -> bool {
+        if let Some(published) = self.published_at {
+            let date = published.date_naive();
+            date >= start && date <= end
+        } else {
+            false
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
