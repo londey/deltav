@@ -35,9 +35,11 @@ pub struct ProjectConfig {
     pub github: GitHubConfig,
 
     /// Project deliverables (documents, CSCIs, demonstrations)
+    #[serde(default)]
     pub deliverables: Deliverables,
 
     /// External dependencies and prerequisites
+    #[serde(default)]
     pub dependencies: Dependencies,
 
     /// T-shirt sizing definitions for effort estimation
@@ -82,6 +84,7 @@ impl ProjectConfig {
                 organisations: vec![Organisation {
                     name: "my-org".to_string(),
                     repo_pattern: "^project-.*".to_string(),
+                    is_user: false,
                 }],
                 projects: vec![GitHubProject {
                     org: "my-org".to_string(),

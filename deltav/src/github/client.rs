@@ -71,14 +71,14 @@ impl GitHubClient {
         self.config.api_url()
     }
 
-    /// Fetch all repositories for an organization that match the configured pattern.
+    /// Fetch all repositories for an organization or user that match the configured pattern.
     ///
-    /// Retrieves repositories from the specified organization and filters them
+    /// Retrieves repositories from the specified organization or user and filters them
     /// using the regex pattern configured for that organization.
     ///
     /// # Arguments
     ///
-    /// * `org` - Organization name (must be configured in `GitHubConfig`).
+    /// * `org` - Organization or user name (must be configured in `GitHubConfig`).
     ///
     /// # Returns
     ///
@@ -87,7 +87,7 @@ impl GitHubClient {
     /// # Errors
     ///
     /// Returns an error if:
-    /// - The organization is not found in the configuration.
+    /// - The organization/user is not found in the configuration.
     /// - The repo pattern regex is invalid.
     /// - The API request fails.
     pub fn fetch_repos(&self, org: &str) -> Result<Vec<Repository>> {
@@ -101,31 +101,50 @@ impl GitHubClient {
         let pattern =
             regex::Regex::new(&org_config.repo_pattern).context("Invalid repo pattern regex")?;
 
+        // Use different endpoint for users vs organizations
+        let endpoint = if org_config.is_user { "users" } else { "orgs" };
+
         let mut all_repos = Vec::new();
         let mut page = 1;
 
         loop {
             let url = format!(
-                "{}/orgs/{}/repos?per_page=100&page={}",
+                "{}/{}/{}/repos?per_page=100&page={}",
                 self.api_url(),
+                endpoint,
                 org,
                 page
             );
 
-            let response: Vec<Repository> = self
+            let response = self
                 .client
                 .get(&url)
                 .send()
-                .context("Failed to fetch repositories")?
+                .context("Failed to fetch repositories")?;
+
+            // Check for error responses and provide helpful debugging info
+            let status = response.status();
+            if !status.is_success() {
+                let body = response.text().unwrap_or_else(|_| "<no body>".to_string());
+                anyhow::bail!(
+                    "GitHub API error ({}): {}\nURL: {}\nHint: If '{}' is a user account, set is_user = true in your config",
+                    status,
+                    body,
+                    url,
+                    org
+                );
+            }
+
+            let repos: Vec<Repository> = response
                 .json()
                 .context("Failed to parse repository response")?;
 
-            if response.is_empty() {
+            if repos.is_empty() {
                 break;
             }
 
             all_repos.extend(
-                response
+                repos
                     .into_iter()
                     .filter(|repo| pattern.is_match(&repo.name)),
             );

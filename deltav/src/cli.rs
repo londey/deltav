@@ -22,9 +22,9 @@ pub struct Cli {
 pub enum Command {
     /// Generate a stub project.toml with example values.
     Init {
-        /// Output file path (default: stdout).
-        #[arg(short, long)]
-        output: Option<PathBuf>,
+        /// Output file path (default: project.toml in current directory).
+        #[arg(short, long, default_value = "project.toml")]
+        output: PathBuf,
     },
 
     /// Output JSON schema for project.toml (for editor autocomplete).

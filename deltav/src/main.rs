@@ -46,11 +46,12 @@ fn main() -> Result<()> {
 /// Generate a stub project.toml with example values.
 ///
 /// Creates a template configuration file with placeholder values that users
-/// can edit to match their project structure.
+/// can edit to match their project structure. Always writes directly to a file
+/// to avoid encoding issues on Windows when piping stdout.
 ///
 /// # Arguments
 ///
-/// * `output` - Optional file path. If `None`, writes to stdout.
+/// * `output` - File path to write to (defaults to "project.toml").
 ///
 /// # Returns
 ///
@@ -59,20 +60,16 @@ fn main() -> Result<()> {
 /// # Errors
 ///
 /// Returns an error if the file cannot be written.
-fn cmd_init(output: Option<std::path::PathBuf>) -> Result<()> {
+fn cmd_init(output: std::path::PathBuf) -> Result<()> {
     let stub = schema::ProjectConfig::stub();
     let toml = toml::to_string_pretty(&stub).context("Failed to serialize stub config")?;
 
     // Add helpful comments
     let commented = add_stub_comments(&toml);
 
-    if let Some(path) = output {
-        std::fs::write(&path, &commented)
-            .with_context(|| format!("Failed to write to {}", path.display()))?;
-        eprintln!("Created {}", path.display());
-    } else {
-        println!("{}", commented);
-    }
+    std::fs::write(&output, &commented)
+        .with_context(|| format!("Failed to write to {}", output.display()))?;
+    eprintln!("Created {}", output.display());
 
     Ok(())
 }

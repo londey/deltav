@@ -95,10 +95,10 @@ impl GitHubConfig {
     }
 }
 
-/// An organization with repository filtering.
+/// An organization or user with repository filtering.
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct Organisation {
-    /// Organization name (as it appears in GitHub URLs).
+    /// Organization or user name (as it appears in GitHub URLs).
     pub name: String,
 
     /// Regex pattern to filter repositories.
@@ -106,6 +106,13 @@ pub struct Organisation {
     /// Only repositories whose names match this pattern will be included.
     /// Use `.*` to include all repositories.
     pub repo_pattern: String,
+
+    /// Set to true if this is a GitHub user account rather than an organization.
+    ///
+    /// User accounts use a different API endpoint (`/users/{name}/repos`)
+    /// than organizations (`/orgs/{name}/repos`).
+    #[serde(default)]
+    pub is_user: bool,
 }
 
 impl Organisation {
@@ -239,6 +246,7 @@ mod tests {
         let org = Organisation {
             name: "my-org".to_string(),
             repo_pattern: "^project-.*".to_string(),
+            is_user: false,
         };
         assert!(org.matches("my-org", "project-foo"));
         assert!(org.matches("my-org", "project-bar-baz"));
@@ -251,6 +259,7 @@ mod tests {
         let org = Organisation {
             name: "my-org".to_string(),
             repo_pattern: ".*".to_string(),
+            is_user: false,
         };
         assert!(org.matches("my-org", "anything"));
         assert!(org.matches("my-org", ""));
