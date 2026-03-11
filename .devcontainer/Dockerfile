@@ -37,7 +37,7 @@ RUN rustup target add wasm32-unknown-unknown
 RUN cargo install cargo-deny cargo-audit cargo-leptos cargo-watch
 
 # Install Claude Code CLI (standalone installer, no Node.js required)
-RUN curl -fsSL https://claude.ai/install.sh | sh
+RUN curl -fsSL https://claude.ai/install.sh | bash
 
 # Create non-root user for development (handle existing UID/GID 1000)
 ARG USERNAME=vscode
