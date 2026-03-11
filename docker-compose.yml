@@ -1,0 +1,18 @@
+# docker-compose configuration for deltav
+# See DD-001 in doc/design/design_decisions.md for deployment rationale.
+
+services:
+  deltav:
+    build: .
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./data:/data
+      - ./config:/config:ro
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped

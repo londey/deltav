@@ -18,6 +18,7 @@
 
 mod cli;
 mod github;
+mod init;
 mod report;
 mod schema;
 
@@ -25,6 +26,7 @@ use anyhow::{Context, Result};
 use clap::Parser;
 use cli::{Cli, Command, OutputFormat};
 use std::io::Write;
+use std::path::PathBuf;
 
 fn main() -> Result<()> {
     let cli = Cli::parse();
@@ -40,7 +42,158 @@ fn main() -> Result<()> {
             output,
             token,
         } => cmd_report(config, week, format, output, token),
+        Command::Serve {
+            data_dir,
+            config_dir,
+            port,
+        } => cmd_serve(data_dir, config_dir, port),
     }
+}
+
+/// Run as a long-lived container service implementing the Initializing → Running → Stopped lifecycle.
+///
+/// This is the primary container entrypoint. The process starts in the Initializing state,
+/// creates the `/data` directory structure, validates configuration from `/config/project.toml`,
+/// then binds the web server and transitions to the Running state. On SIGTERM/SIGINT or
+/// unrecoverable error, the process transitions to Stopped.
+///
+/// # Arguments
+///
+/// * `data_dir` - Path to the persistent data directory (e.g. `/data`).
+/// * `config_dir` - Path to the configuration directory containing `project.toml`.
+/// * `port` - TCP port to bind the web server on.
+///
+/// # Errors
+///
+/// Returns an error if data directory initialization fails, configuration is invalid,
+/// the web server cannot bind, or the async runtime cannot be created.
+fn cmd_serve(data_dir: PathBuf, config_dir: PathBuf, port: u16) -> Result<()> {
+    // Build the tokio runtime and block on the async serve routine
+    let rt = tokio::runtime::Runtime::new().context("Failed to create async runtime")?;
+    rt.block_on(async_serve(data_dir, config_dir, port))
+}
+
+/// Async implementation of the serve lifecycle.
+///
+/// # Arguments
+///
+/// * `data_dir` - Path to the persistent data directory.
+/// * `config_dir` - Path to the configuration directory containing `project.toml`.
+/// * `port` - TCP port to bind the web server on.
+///
+/// # Errors
+///
+/// Returns an error if initialization, config loading, or web server binding fails.
+async fn async_serve(data_dir: PathBuf, config_dir: PathBuf, port: u16) -> Result<()> {
+    // --- Initializing state ---
+    eprintln!("deltav: entering Initializing state");
+
+    // Step 1: Initialize data directory structure
+    eprintln!(
+        "deltav: initializing data directory at {}",
+        data_dir.display()
+    );
+    init::initialize_data_dir(&data_dir)?;
+
+    // Step 2: Load and validate configuration
+    let config_path = config_dir.join("project.toml");
+    eprintln!(
+        "deltav: loading configuration from {}",
+        config_path.display()
+    );
+    let _config = schema::ProjectConfig::load(&config_path).with_context(|| {
+        format!(
+            "Initialization failed: ensure a valid project.toml exists at {}",
+            config_path.display()
+        )
+    })?;
+
+    // Step 3: Build router with health and root endpoints
+    let app = axum::Router::new()
+        .route("/health", axum::routing::get(handle_health))
+        .route("/", axum::routing::get(handle_root));
+
+    // Step 4: Bind web server
+    let addr = std::net::SocketAddr::from(([0, 0, 0, 0], port));
+    let listener = tokio::net::TcpListener::bind(addr)
+        .await
+        .with_context(|| format!("Failed to bind web server on port {}", port))?;
+
+    // --- Transition to Running state ---
+    eprintln!("deltav: entering Running state");
+    eprintln!("deltav running on port {}", port);
+
+    // Step 5: Serve with graceful shutdown on SIGTERM/SIGINT
+    axum::serve(listener, app)
+        .with_graceful_shutdown(shutdown_signal())
+        .await
+        .context("Web server error")?;
+
+    // --- Transition to Stopped state ---
+    eprintln!("deltav: entering Stopped state");
+    eprintln!("deltav: graceful shutdown complete");
+
+    Ok(())
+}
+
+/// Wait for a SIGTERM or SIGINT signal for graceful shutdown.
+///
+/// If a signal handler cannot be installed, logs a warning and falls back
+/// to waiting on the other signal indefinitely.
+async fn shutdown_signal() {
+    let ctrl_c = async {
+        match tokio::signal::ctrl_c().await {
+            Ok(()) => eprintln!("deltav: received SIGINT, shutting down"),
+            Err(e) => {
+                eprintln!("deltav: failed to install SIGINT handler: {e}");
+                std::future::pending::<()>().await;
+            }
+        }
+    };
+
+    #[cfg(unix)]
+    let terminate = async {
+        match tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate()) {
+            Ok(mut sig) => {
+                sig.recv().await;
+                eprintln!("deltav: received SIGTERM, shutting down");
+            }
+            Err(e) => {
+                eprintln!("deltav: failed to install SIGTERM handler: {e}");
+                std::future::pending::<()>().await;
+            }
+        }
+    };
+
+    #[cfg(not(unix))]
+    let terminate = std::future::pending::<()>();
+
+    tokio::select! {
+        () = ctrl_c => {}
+        () = terminate => {}
+    }
+}
+
+/// Handler for `GET /health`.
+///
+/// # Returns
+///
+/// A 200 OK response with body `"OK"`.
+async fn handle_health() -> &'static str {
+    "OK"
+}
+
+/// Handler for `GET /`.
+///
+/// # Returns
+///
+/// A 200 OK HTML response with a placeholder status page.
+async fn handle_root() -> axum::response::Html<&'static str> {
+    axum::response::Html(
+        "<html><head><title>deltav</title></head><body>\
+         <h1>deltav</h1><p>DevSecOps metrics aggregator is running.</p>\
+         </body></html>",
+    )
 }
 
 /// Generate a stub project.toml with example values.

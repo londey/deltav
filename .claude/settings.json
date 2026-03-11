@@ -1,0 +1,36 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(./build.sh)",
+      "Bash(.syskit/scripts/arch-update.sh)",
+      "Bash(.syskit/scripts/assemble-chunks.sh)",
+      "Bash(.syskit/scripts/find-task.sh)",
+      "Bash(.syskit/scripts/impl-check.sh)",
+      "Bash(.syskit/scripts/impl-stamp.sh)",
+      "Bash(.syskit/scripts/manifest-check.sh)",
+      "Bash(.syskit/scripts/manifest-snapshot.sh)",
+      "Bash(.syskit/scripts/manifest.sh)",
+      "Bash(.syskit/scripts/new-int.sh)",
+      "Bash(.syskit/scripts/new-req.sh)",
+      "Bash(.syskit/scripts/new-unit.sh)",
+      "Bash(.syskit/scripts/new-ver.sh)",
+      "Bash(.syskit/scripts/template-check.sh)",
+      "Bash(.syskit/scripts/toc-update.sh)",
+      "Bash(.syskit/scripts/trace-lib.sh)",
+      "Bash(.syskit/scripts/trace-query.sh)",
+      "Bash(.syskit/scripts/trace-sync.sh)",
+      "Bash(.syskit/scripts/trace.sh)",
+      "Bash(cargo audit:*)",
+      "Bash(cargo check:*)",
+      "Bash(cargo clippy:*)",
+      "Bash(cargo deny:*)",
+      "Bash(cargo fmt:*)",
+      "Bash(cargo test:*)",
+      "Bash(cargo tree:*)",
+      "Bash(echo \"EXIT: $?\")",
+      "Bash(cargo run:*)",
+      "Bash(./build.sh:*)",
+      "Bash(rustc --version)"
+    ]
+  }
+}

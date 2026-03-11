@@ -157,7 +157,7 @@ impl ProjectConfig {
     }
 
     /// Generate JSON schema for editor autocomplete.
-    pub fn json_schema() -> schemars::schema::RootSchema {
+    pub fn json_schema() -> schemars::Schema {
         schemars::schema_for!(ProjectConfig)
     }
 }

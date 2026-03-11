@@ -41,6 +41,21 @@ pub enum Command {
         config: PathBuf,
     },
 
+    /// Run as a long-lived container service (Docker entrypoint).
+    Serve {
+        /// Path to the persistent data directory.
+        #[arg(long, default_value = "/data")]
+        data_dir: PathBuf,
+
+        /// Path to the configuration directory containing project.toml.
+        #[arg(long, default_value = "/config")]
+        config_dir: PathBuf,
+
+        /// Port to bind the web server on.
+        #[arg(long, default_value = "8080")]
+        port: u16,
+    },
+
     /// Generate a weekly report.
     Report {
         /// Path to project.toml.

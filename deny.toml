@@ -6,8 +6,7 @@
 version = 2
 db-path = "~/.cargo/advisory-db"
 db-urls = ["https://github.com/rustsec/advisory-db"]
-# rustls-pemfile is unmaintained but not a security issue; reqwest 0.11.x still uses it
-ignore = ["RUSTSEC-2025-0134"]
+ignore = []
 
 [licenses]
 # Only allow permissive open source licenses
@@ -29,6 +28,8 @@ allow = [
     "Unicode-3.0",
     "Zlib",
     "CC0-1.0",
+    "CDLA-Permissive-2.0",
+    "OpenSSL",
 ]
 
 # Don't warn about unused licenses in the allow list

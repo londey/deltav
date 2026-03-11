@@ -30,18 +30,7 @@ The project scaffolding is complete with:
 
 ## Build Notes
 
-**Rust Version Constraint:** The development environment has Rust 1.75. Some dependencies (chrono, reqwest via idna/ICU) pull in crates requiring newer Rust. You may need to:
-1. Pin dependencies to older versions
-2. Use `cargo update <pkg> --precise <version>` to downgrade
-3. Disable default features that pull in ICU (e.g., chrono's `iana-time-zone`)
-
-Known working approach:
-```toml
-chrono = { version = "0.4.26", default-features = false, features = ["serde", "std", "clock"] }
-reqwest = { version = "0.11.22", default-features = false, features = ["json", "blocking", "rustls-tls"] }
-```
-
-You may need to pin `idna` and `url` to pre-ICU versions if build fails.
+**Rust Version:** The development environment and production Dockerfile use Rust stable (currently 1.94). No special dependency pinning is required.
 
 ## Architecture
 
