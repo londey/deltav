@@ -1,0 +1,52 @@
+{
+    "name": "deltav Development",
+    "build": {
+        "dockerfile": "Dockerfile",
+        "context": ".."
+    },
+    "remoteUser": "vscode",
+    "features": {
+        "ghcr.io/devcontainers/features/git:1": {}
+    },
+    "forwardPorts": [3000],
+    "mounts": [
+        "source=deltav-cargo-cache,target=/opt/cargo/registry,type=volume"
+    ],
+    "containerEnv": {
+        "GIT_EDITOR": "code --wait"
+    },
+    "remoteEnv": {
+        "ANTHROPIC_API_KEY": "${localEnv:ANTHROPIC_API_KEY}",
+        "GITHUB_TOKEN": "${localEnv:GITHUB_TOKEN}"
+    },
+    "postCreateCommand": "bash .devcontainer/scripts/post-create.sh",
+    "postAttachCommand": "bash .devcontainer/scripts/post-attach.sh",
+    "customizations": {
+        "vscode": {
+            "extensions": [
+                "Anthropic.claude-code",
+                "bierner.markdown-mermaid",
+                "EditorConfig.EditorConfig",
+                "fill-labs.dependi",
+                "mutantdino.resourcemonitor",
+                "rust-lang.rust-analyzer",
+                "streetsidesoftware.code-spell-checker-australian-english",
+                "streetsidesoftware.code-spell-checker",
+                "tamasfe.even-better-toml",
+                "vadimcn.vscode-lldb"
+            ],
+            "settings": {
+                "terminal.integrated.defaultProfile.linux": "bash",
+                "terminal.integrated.profiles.linux": {
+                    "bash": {
+                        "path": "/bin/bash",
+                        "args": [
+                            "-l"
+                        ]
+                    }
+                }
+            }
+        }
+    },
+    "workspaceFolder": "/workspaces/deltav"
+}

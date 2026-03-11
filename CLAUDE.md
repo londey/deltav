@@ -4,6 +4,15 @@
 
 deltav is a DevSecOps metrics aggregator for GitHub Enterprise, designed for systems engineering environments with hardware-in-the-loop (HIL) testing constraints. It generates weekly delivery performance reports from GitHub issues/PRs across multiple organizations.
 
+## Key Rules
+
+- `./build.sh --check` must pass after every change (cargo fmt, cargo check, cargo clippy).
+- Minimize blast radius: only change code directly related to the current task. If you notice problems in other areas, mention them but don't fix them without approval.
+- `ARCHITECTURE.md` is the authoritative high-level architecture document.
+- All code follows its respective style guide:
+  - Rust: `.claude/skills/claude-skill-rust/SKILL.md`
+
+
 ## Current State
 
 The project scaffolding is complete with:
