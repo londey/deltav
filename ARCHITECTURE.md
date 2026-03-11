@@ -4,8 +4,9 @@
 
 ## System Description
 
-<Describe the system at the highest level: what problem it solves, its primary
-responsibilities, and its operational environment.>
+The _deltav_ system is designed to provide team and project management reports and dashboards for a GitHub Enterprise.
+The System consists of a backend docker server that connects to the GitHub server via the GitHub API and serves a web interface.
+The backend and frontend are implemented in Rust using <backend> and the _leptos_ frontend framework. 
 
 ## Design Philosophy
 
