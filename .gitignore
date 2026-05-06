@@ -1,3 +1,14 @@
-.claude/settings.local.json
-/.syskit
-/target
+__pycache__
+/.claude/*
+.syskit
+*.bk
+*.fst
+*.pyc
+*.vcd
+**/*.local.json
+build/
+obj_dir/
+target/
+
+!/.claude/agents/
+!/.claude/skills/

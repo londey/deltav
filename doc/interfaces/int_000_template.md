@@ -12,10 +12,7 @@ Or copy this template and modify.
 
 ## Type
 
-Choose one:
-- **Internal:** Defined by this project
-- **External Standard:** Defined by an external specification (e.g., PNG, SPI, USB)
-- **External Service:** Defined by an external service (e.g., REST API)
+Internal | External Standard | External Service
 
 ## External Specification
 
@@ -35,23 +32,7 @@ Choose one:
 
 ### Details
 
-<Detailed specification>
-
-For hardware interfaces, consider:
-- Signal definitions
-- Timing requirements
-- Electrical characteristics
-
-For data formats, consider:
-- Field definitions
-- Encoding
-- Constraints and valid ranges
-
-For APIs, consider:
-- Endpoints / functions
-- Parameters
-- Return values
-- Error conditions
+<Detailed specification. See `doc/interfaces/README.md` for a completeness checklist by interface type.>
 
 ## Constraints
 
@@ -59,4 +40,4 @@ For APIs, consider:
 
 ## Notes
 
-<Additional context, rationale for choices, compatibility considerations>
+<Optional. External consumers not covered by a UNIT (e.g., host-side drivers) may be listed here. Provider/consumer UNITs are declared by the UNIT docs themselves — do not mirror that list here. Reverse lists of REQs or UNITs that reference this interface are maintained by those documents, not here.>

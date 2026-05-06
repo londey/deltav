@@ -39,4 +39,5 @@ Verification methods:
 
 <!-- TOC-START -->
 - [Test Strategy](test_strategy.md)
+- [VER-001: Container Startup Behavior](ver_001_container_startup.md)
 <!-- TOC-END -->
